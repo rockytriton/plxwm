@@ -9,24 +9,29 @@ LIBS != $(PKG_CONFIG) --libs $(PKGS)
 
 CXX = g++
 BUILD_DIR = build
+SRC_DIR = src
 
-# List your source files here
-SRCS = plxwm.cpp plxwm_server.cpp plxwm_server_output.cpp plxwm_keyboard.cpp plxwm_cursor.cpp
+# List your source files (filenames only)
+SRCS_FILES = plxwm.cpp plxwm_server.cpp plxwm_server_output.cpp plxwm_keyboard.cpp plxwm_cursor.cpp
 
-# Map source files to the build directory
-OBJS = $(SRCS:%.cpp=$(BUILD_DIR)/%.o)
+# Map the source filenames to their actual location in src/
+SRCS = $(addprefix $(SRC_DIR)/, $(SRCS_FILES))
+
+# Map the source files to the build directory for object files
+# This turns "src/plxwm.cpp" into "build/plxwm.o"
+OBJS = $(SRCS_FILES:%.cpp=$(BUILD_DIR)/%.o)
 
 all: plxwm
 
-# 1. Generate the protocol header ONLY
+# 1. Generate the protocol header
 $(BUILD_DIR)/xdg-shell-protocol.h: | $(BUILD_DIR)
 	$(WAYLAND_SCANNER) server-header \
 		$(WAYLAND_PROTOCOLS)/stable/xdg-shell/xdg-shell.xml $@
 
 # 2. Pattern Rule for .cpp files
-# We include $(BUILD_DIR) in the include path so the header is found
-$(BUILD_DIR)/%.o: %.cpp $(BUILD_DIR)/xdg-shell-protocol.h | $(BUILD_DIR)
-	$(CXX) -c $< -g -Werror $(CFLAGS) -I$(BUILD_DIR) -I. -DWLR_USE_UNSTABLE -o $@
+# This tells Make: "To build build/foo.o, look for src/foo.cpp"
+$(BUILD_DIR)/%.o: $(SRC_DIR)/%.cpp $(BUILD_DIR)/xdg-shell-protocol.h | $(BUILD_DIR)
+	$(CXX) -c $< -g -Werror $(CFLAGS) -I$(BUILD_DIR) -Iinclude -I$(SRC_DIR) -DWLR_USE_UNSTABLE -o $@
 
 # 3. Create the build directory
 $(BUILD_DIR):
