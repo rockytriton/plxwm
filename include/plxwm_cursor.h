@@ -22,12 +22,6 @@ public:
     void onCursorFrame(wl_listener *listener, void *data);
     void onCursorAxis(wl_listener *listener, wlr_pointer_axis_event *event);
 
-    double getGrabX() { return grab_x; }
-    double getGrabY() { return grab_y; }
-
-    void setGrabX(double x) { grab_x = x; }
-    void setGrabY(double y) { grab_y = y; }
-
 private:
     Server *server;
 
@@ -38,7 +32,6 @@ private:
 	Listener<Cursor> cursor_button;
 	Listener<Cursor> cursor_axis;
 	Listener<Cursor> cursor_frame;
-	double grab_x, grab_y;
 };
 
 }

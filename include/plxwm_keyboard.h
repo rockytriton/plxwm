@@ -20,7 +20,7 @@ private:
     Server *server;
     wlr_input_device *device;
 
-	wl_list link;
+	//wl_list link;
 	wlr_keyboard *keyboard;
 
 	Listener<Keyboard> modifiers;

@@ -28,7 +28,7 @@ void ServerOutput::init() {
 	destroy.listener.notify = NOTIFIER(ServerOutput, void, onDestroy);
 	wl_signal_add(&output->events.destroy, &destroy.listener);
 
-	wl_list_insert(server->getOutputs(), &link);
+	//wl_list_insert(server->getOutputs(), &link);
 
 }
 
@@ -65,7 +65,7 @@ void ServerOutput::onDestroy(wl_listener *listener, void *data) {
 	wl_list_remove(&frame.listener.link);
 	wl_list_remove(&request_state.listener.link);
 	wl_list_remove(&destroy.listener.link);
-	wl_list_remove(&link);
+	//wl_list_remove(&link);
 
 	//free(output);
 }

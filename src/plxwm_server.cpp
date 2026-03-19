@@ -7,6 +7,10 @@
 namespace PlxWM {
 
 
+wlr_cursor *Server::getCursor() { 
+	return cursor->getCursor(); 
+}
+
 AppWindow *Server::getWindowAt(double lx, double ly, double *sx, double *sy) {
 	wlr_scene_node *node = wlr_scene_node_at(&scene->tree.node, lx, ly, sx, sy);
 
@@ -27,6 +31,62 @@ AppWindow *Server::getWindowAt(double lx, double ly, double *sx, double *sy) {
 	}
 
 	return (AppWindow *)tree->node.data;
+}
+
+void Server::processResize() {
+
+	/*
+	 * Resizing the grabbed toplevel can be a little bit complicated, because we
+	 * could be resizing from any corner or edge. This not only resizes the
+	 * toplevel on one or two axes, but can also move the toplevel if you resize
+	 * from the top or left edges (or top-left corner).
+	 *
+	 * Note that some shortcuts are taken here. In a more fleshed-out
+	 * compositor, you'd wait for the client to prepare a buffer at the new
+	 * size, then commit any movement that was prepared.
+	*/
+
+
+	AppWindow *wnd = grabbedWindow;
+
+	double border_x = getCursor()->x - grab_x;
+	double border_y = getCursor()->y - grab_y;
+	int new_left = grab_geobox.x;
+	int new_right = grab_geobox.x + grab_geobox.width;
+	int new_top = grab_geobox.y;
+	int new_bottom = grab_geobox.y + grab_geobox.height;
+
+	if (resize_edges & WLR_EDGE_TOP) {
+		new_top = border_y;
+		if (new_top >= new_bottom) {
+			new_top = new_bottom - 1;
+		}
+	} else if (resize_edges & WLR_EDGE_BOTTOM) {
+		new_bottom = border_y;
+		if (new_bottom <= new_top) {
+			new_bottom = new_top + 1;
+		}
+	}
+	if (resize_edges & WLR_EDGE_LEFT) {
+		new_left = border_x;
+		if (new_left >= new_right) {
+			new_left = new_right - 1;
+		}
+	} else if (resize_edges & WLR_EDGE_RIGHT) {
+		new_right = border_x;
+		if (new_right <= new_left) {
+			new_right = new_left + 1;
+		}
+	}
+
+	struct wlr_box *geo_box = &wnd->getXdgTopLevel()->base->geometry;
+	wlr_scene_node_set_position(&wnd->getSceneTree()->node,
+		new_left - geo_box->x, new_top - geo_box->y);
+
+	int new_width = new_right - new_left;
+	int new_height = new_bottom - new_top;
+	wlr_xdg_toplevel_set_size(wnd->getXdgTopLevel(), new_width, new_height);
+
 }
 
 void Server::focus(AppWindow *wnd) {
@@ -60,8 +120,8 @@ void Server::focus(AppWindow *wnd) {
 	/* Move the toplevel to the front */
 	wlr_scene_node_raise_to_top(&wnd->getSceneTree()->node);
 
-	wl_list_remove(wnd->getLink());
-	wl_list_insert(&appWindows, wnd->getLink());
+	//wl_list_remove(wnd->getLink());
+	//wl_list_insert(&appWindows, wnd->getLink());
 
 	/* Activate the new surface */
 	wlr_xdg_toplevel_set_activated(wnd->getXdgTopLevel(), true);
@@ -125,6 +185,7 @@ void Server::onNewOutput(wl_listener *listener, wlr_output *output) {
 	/* Allocates and configures our state for this output */
     ServerOutput *srv_out = new ServerOutput(this, output);
     srv_out->init();
+	outputs.push_back(srv_out);
 
 	/* Adds this to the output layout. The add_auto function arranges outputs
 	 * from left-to-right in the order they appear. A more sophisticated
@@ -165,9 +226,12 @@ void Server::onNewInput(wl_listener *listener, wlr_input_device *device) {
 	 * there are no pointer devices, so we always include that capability. */
 	uint32_t caps = WL_SEAT_CAPABILITY_POINTER;
 
-	if (!wl_list_empty(&keyboards)) {
+	if (!keyboards.empty()) {
 		caps |= WL_SEAT_CAPABILITY_KEYBOARD;
 	}
+	//if (!wl_list_empty(&keyboards)) {
+	//	caps |= WL_SEAT_CAPABILITY_KEYBOARD;
+	//}
 
 	wlr_seat_set_capabilities(seat, caps);
 }
@@ -272,14 +336,14 @@ void Server::init() {
 
     output_layout = wlr_output_layout_create(display);
 
-	wl_list_init(&outputs);
+	//wl_list_init(&outputs);
 
 	wl_signal_add(&backend->events.new_output, &new_output.listener);
 
 	scene = wlr_scene_create();
 	scene_layout = wlr_scene_attach_output_layout(scene, output_layout);
 
-	wl_list_init(&appWindows);
+	//wl_list_init(&appWindows);
 	xdg_shell = wlr_xdg_shell_create(display, 3);
 	wl_signal_add(&xdg_shell->events.new_toplevel, &new_xdg_toplevel.listener);
 	wl_signal_add(&xdg_shell->events.new_popup, &new_xdg_popup.listener);
@@ -293,7 +357,7 @@ void Server::init() {
 	 * pointer, touch, and drawing tablet device. We also rig up a listener to
 	 * let us know when new input devices are available on the backend.
 	 */
-	wl_list_init(&keyboards);
+	//wl_list_init(&keyboards);
 
 	new_input.listener.notify = NOTIFIER(Server, wlr_input_device, onNewInput);
 	wl_signal_add(&backend->events.new_input, &new_input.listener);
@@ -335,6 +399,7 @@ void Server::init() {
 void Server::newKeyboard(wlr_input_device *device) {
     Keyboard *kb = new Keyboard(this, device);
     kb->init();
+	keyboards.push_back(kb);
 }
 
 };

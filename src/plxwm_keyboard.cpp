@@ -68,7 +68,7 @@ void Keyboard::init() {
 	wlr_seat_set_keyboard(server->getSeat(), keyboard);
 
 	/* And add the keyboard to our list of keyboards */
-	wl_list_insert(server->getKeyboards(), &link);
+	//wl_list_insert(server->getKeyboards(), &link);
 }
 
 
@@ -133,7 +133,7 @@ void Keyboard::onDestroy(wl_listener *listener) {
 	wl_list_remove(&modifiers.listener.link);
 	wl_list_remove(&key.listener.link);
 	wl_list_remove(&destroy.listener.link);
-	wl_list_remove(&link);
+	//wl_list_remove(&link);
 }
 
 

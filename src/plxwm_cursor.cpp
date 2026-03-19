@@ -16,12 +16,12 @@ void Cursor::onMove(uint32_t time) {
         AppWindow *appWindow = server->getGrabbedWindow();
 
         wlr_scene_node_set_position(&appWindow->getSceneTree()->node,
-            cursor->x - grab_x,
-            cursor->y - grab_y);
+            cursor->x - server->getGrabX(),
+            cursor->y - server->getGrabY());
 
 		return;
 	} else if (cursor_mode == TINYWL_CURSOR_RESIZE) {
-		//TODO process_cursor_resize(server);
+		server->processResize();
 		return;
 	}
 

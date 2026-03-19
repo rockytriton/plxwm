@@ -16,7 +16,7 @@ public:
     void onDestroy(wl_listener *listener, void *data);
 
 private:
-	wl_list link;
+	//wl_list link;
 	Server *server;
 	wlr_output *output;
 	Listener<ServerOutput> frame;
