@@ -5,11 +5,13 @@
 namespace PlxWM {
 
 void AppWindow::onMap(wl_listener *listener, void *data) {
+    printf("onMap\n");
     //wl_list_insert(server->getAppWindows(), &link);
     server->focus(this);
 }
 
 void AppWindow::onUnmap(wl_listener *listener, void *data) {
+    printf("onUnmap\n");
 	/* Called when the surface is unmapped, and should no longer be shown. */
 	//struct tinywl_toplevel *toplevel = wl_container_of(listener, toplevel, unmap);
 
@@ -20,10 +22,12 @@ void AppWindow::onUnmap(wl_listener *listener, void *data) {
 		server->setGrabbedWindow(NULL);
 	}
 
-	//wl_list_remove(&link);
+	wl_list_remove(&link);
+    printf("onUnmap - done\n");
 }
 
 void AppWindow::onCommit(wl_listener *listener, void *data) {
+    printf("onCommit\n");
 
     if (xdg_toplevel->base->initial_commit) {
 		//When an xdg_surface performs an initial commit, the compositor must
@@ -40,7 +44,6 @@ void AppWindow::onDestroy(struct wl_listener *listener, void *data) {
 	struct tinywl_toplevel *toplevel = wl_container_of(listener, toplevel, destroy); */
 
 	map->cleanup();
-
 	unmap->cleanup();
 	commit->cleanup();
 	destroy->cleanup();
@@ -49,6 +52,8 @@ void AppWindow::onDestroy(struct wl_listener *listener, void *data) {
 	resize->cleanup();
 	maximize->cleanup();
 	fullscreen->cleanup();
+
+	printf("On destroy done\n");
 }
 
 void AppWindow::beginInteractive(enum tinywl_cursor_mode mode, uint32_t edges) {

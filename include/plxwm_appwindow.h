@@ -33,6 +33,8 @@ private:
 	wlr_xdg_toplevel *xdg_toplevel;
 	wlr_scene_tree *scene_tree;
 
+    wl_list link;
+
     std::unique_ptr<Signal<&AppWindow::onRequestMove>> move;
     std::unique_ptr<Signal<&AppWindow::onRequestResize>> resize;
     std::unique_ptr<Signal<&AppWindow::onRequestMaximize>> maximize;
