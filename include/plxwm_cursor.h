@@ -16,12 +16,18 @@ public:
     wlr_cursor *getCursor() { return cursor; }
 
     void onMove(uint32_t time);
+    void onMotion(wl_listener *listener, wlr_pointer_motion_event *event);
+    void onMotionAbsolute(wl_listener *listener, wlr_pointer_motion_absolute_event *event);
+    void onButton(wl_listener *listener, wlr_pointer_button_event *event);
+    void onCursorFrame(wl_listener *listener, void *data);
+    void onCursorAxis(wl_listener *listener, wlr_pointer_axis_event *event);
 
-    static void server_cursor_frame(struct wl_listener *listener, void *data);
-    static void server_cursor_motion(struct wl_listener *listener, void *data);
-    static void server_cursor_motion_absolute(wl_listener *listener, void *data);
-    static void server_cursor_button(struct wl_listener *listener, void *data);
-    
+    double getGrabX() { return grab_x; }
+    double getGrabY() { return grab_y; }
+
+    void setGrabX(double x) { grab_x = x; }
+    void setGrabY(double y) { grab_y = y; }
+
 private:
     Server *server;
 

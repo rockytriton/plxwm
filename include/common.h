@@ -36,6 +36,18 @@ extern "C" {
 }
 #endif
 
+#define NOTIFIER(X,Y,Z) [](wl_listener *listener, void *data) { \
+	X *obj = ((Listener<X> *)listener)->owner; \
+	Y *val = (Y *)data; \
+	obj->Z(&((Listener<X> *)listener)->listener, val); \
+}
+
+#define NOTIFIER_ND(X,Z) [](wl_listener *listener, void *data) { \
+	X *obj = ((Listener<X> *)listener)->owner; \
+	obj->Z(&((Listener<X> *)listener)->listener); \
+}
+
+
 struct tinywl_output {
 	struct wl_list link;
 	struct tinywl_server *server;
@@ -84,3 +96,11 @@ struct Listener {
 
 #include <xkbcommon/xkbcommon.h>
 
+
+enum tinywl_cursor_mode {
+	TINYWL_CURSOR_PASSTHROUGH,
+	TINYWL_CURSOR_MOVE,
+	TINYWL_CURSOR_RESIZE,
+};
+
+extern tinywl_cursor_mode cursor_mode;

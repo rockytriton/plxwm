@@ -13,13 +13,6 @@ Keyboard::Keyboard(Server *server, wlr_input_device *device) {
     destroy.owner = this;
 }
 
-
-static void keyboard_handle_modifiers(wl_listener *listener, void *data) {
-    Keyboard *kb = ((Listener<Keyboard> *)listener)->owner;
-    kb->onModifiers(&((Listener<Keyboard> *)listener)->listener);
-
-}
-
 bool Keyboard::handleKeyBinding(xkb_keysym_t sym) {
 	/*
 	 * Here we handle compositor keybindings. This is when the compositor is
@@ -50,18 +43,6 @@ bool Keyboard::handleKeyBinding(xkb_keysym_t sym) {
 	return true;
 }
 
-static void keyboard_handle_key(
-		struct wl_listener *listener, void *data) {
-    Keyboard *kb = ((Listener<Keyboard> *)listener)->owner;
-    kb->onKey(&((Listener<Keyboard> *)listener)->listener, (wlr_keyboard_key_event *)data);
-
-}
-
-static void keyboard_handle_destroy(struct wl_listener *listener, void *data) {
-    Keyboard *kb = ((Listener<Keyboard> *)listener)->owner;
-    kb->onDestroy(&((Listener<Keyboard> *)listener)->listener);
-}
-
 
 void Keyboard::init() {
     
@@ -77,11 +58,11 @@ void Keyboard::init() {
 	wlr_keyboard_set_repeat_info(keyboard, 25, 600);
 
 	/* Here we set up listeners for keyboard events. */
-	modifiers.listener.notify = keyboard_handle_modifiers;
+	modifiers.listener.notify = NOTIFIER_ND(Keyboard, onModifiers);
 	wl_signal_add(&keyboard->events.modifiers, &modifiers.listener);
-	key.listener.notify = keyboard_handle_key;
+	key.listener.notify = NOTIFIER(Keyboard, wlr_keyboard_key_event, onKey);
 	wl_signal_add(&keyboard->events.key, &key.listener);
-	destroy.listener.notify = keyboard_handle_destroy;
+	destroy.listener.notify = NOTIFIER_ND(Keyboard, onDestroy);
 	wl_signal_add(&device->events.destroy, &destroy.listener);
 
 	wlr_seat_set_keyboard(server->getSeat(), keyboard);

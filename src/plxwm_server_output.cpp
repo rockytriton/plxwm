@@ -4,25 +4,6 @@
 namespace PlxWM {
 
 
-void ServerOutput::output_frame(struct wl_listener *listener, void *data) {
-
-    ServerOutput *srv_out = ((Listener<ServerOutput> *)listener)->owner;
-    srv_out->onFrame(&((Listener<ServerOutput> *)listener)->listener, data);
-}
-
-void ServerOutput::output_request_state(struct wl_listener *listener, void *data) {
-
-    ServerOutput *srv_out = ((Listener<ServerOutput> *)listener)->owner;
-    srv_out->onRequestState(&((Listener<ServerOutput> *)listener)->listener, data);
-
-}
-
-void ServerOutput::output_destroy(struct wl_listener *listener, void *data) {
-
-    ServerOutput *srv_out = ((Listener<ServerOutput> *)listener)->owner;
-    srv_out->onDestroy(&((Listener<ServerOutput> *)listener)->listener, data);
-
-}
 
 ServerOutput::ServerOutput(Server *server, wlr_output *output) {
     this->server = server;
@@ -36,15 +17,15 @@ ServerOutput::ServerOutput(Server *server, wlr_output *output) {
 void ServerOutput::init() {
     
 	/* Sets up a listener for the frame event. */
-	frame.listener.notify = ServerOutput::output_frame;
+	frame.listener.notify = NOTIFIER(ServerOutput, void, onFrame);
 	wl_signal_add(&output->events.frame, &frame.listener);
 
 	/* Sets up a listener for the state request event. */
-	request_state.listener.notify = ServerOutput::output_request_state;
+	request_state.listener.notify = NOTIFIER(ServerOutput, void, onRequestState);
 	wl_signal_add(&output->events.request_state, &request_state.listener);
 
 	/* Sets up a listener for the destroy event. */
-	destroy.listener.notify = ServerOutput::output_destroy;
+	destroy.listener.notify = NOTIFIER(ServerOutput, void, onDestroy);
 	wl_signal_add(&output->events.destroy, &destroy.listener);
 
 	wl_list_insert(server->getOutputs(), &link);

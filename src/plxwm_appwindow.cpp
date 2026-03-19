@@ -1,44 +1,29 @@
 #include "plxwm_appwindow.h"
 #include "plxwm_server.h"
+#include "plxwm_cursor.h"
 
 namespace PlxWM {
 
-
-
-static void xdg_toplevel_map(struct wl_listener *listener, void *data) {
-	/* Called when the surface is mapped, or ready to display on-screen. */
-	//struct tinywl_toplevel *toplevel = wl_container_of(listener, toplevel, map);
-
-    AppWindow *kb = ((Listener<AppWindow> *)listener)->owner;
-	kb->onMap(&((Listener<AppWindow> *)listener)->listener);
+void AppWindow::onMap(wl_listener *listener) {
+    wl_list_insert(server->getAppWindows(), &link);
+    server->focus(this);
 }
 
-static void xdg_toplevel_unmap(struct wl_listener *listener, void *data) {
-    printf("xdg_toplevel_unmap\n");
+void AppWindow::onUnmap(wl_listener *listener) {
 	/* Called when the surface is unmapped, and should no longer be shown. */
 	//struct tinywl_toplevel *toplevel = wl_container_of(listener, toplevel, unmap);
 
 	/* Reset the cursor mode if the grabbed toplevel was unmapped. */
-	//if (toplevel == toplevel->server->grabbed_toplevel) {
-	//	reset_cursor_mode(toplevel->server);
-	//}
+	
+	if (this == server->getGrabbedWindow()) {
+		cursor_mode = TINYWL_CURSOR_PASSTHROUGH;
+		server->setGrabbedWindow(NULL);
+	}
 
-	//wl_list_remove(&toplevel->link);
-}
-
-void AppWindow::onMap(wl_listener *listener) {
-    printf("ON onMap: %p\n", server);
-    wl_list_insert(server->getAppWindows(), &link);
-    server->focus(this);
-    printf("Focus\n");
-}
-
-void AppWindow::onUnmap(wl_listener *listener) {
-
+	wl_list_remove(&link);
 }
 
 void AppWindow::onCommit(wl_listener *listener) {
-    printf("ON onCommit\n");
 
     if (xdg_toplevel->base->initial_commit) {
 		//When an xdg_surface performs an initial commit, the compositor must
@@ -49,41 +34,61 @@ void AppWindow::onCommit(wl_listener *listener) {
     }
 }
 
-static void xdg_toplevel_commit(struct wl_listener *listener, void *data) {
-    AppWindow *kb = ((Listener<AppWindow> *)listener)->owner;
-	kb->onCommit(&((Listener<AppWindow> *)listener)->listener);
-
-}
-
-static void xdg_toplevel_destroy(struct wl_listener *listener, void *data) {
-    printf("xdg_toplevel_destroy\n");
+void AppWindow::onDestroy(struct wl_listener *listener, void *data) {
+    printf("onDestroy\n");
 	/* Called when the xdg_toplevel is destroyed. 
-	struct tinywl_toplevel *toplevel = wl_container_of(listener, toplevel, destroy);
+	struct tinywl_toplevel *toplevel = wl_container_of(listener, toplevel, destroy); */
 
-	wl_list_remove(&toplevel->map.link);
-	wl_list_remove(&toplevel->unmap.link);
-	wl_list_remove(&toplevel->commit.link);
-	wl_list_remove(&toplevel->destroy.link);
-	wl_list_remove(&toplevel->request_move.link);
-	wl_list_remove(&toplevel->request_resize.link);
-	wl_list_remove(&toplevel->request_maximize.link);
-	wl_list_remove(&toplevel->request_fullscreen.link);
+	wl_list_remove(&map.listener.link);
+	wl_list_remove(&unmap.listener.link);
+	wl_list_remove(&commit.listener.link);
+	wl_list_remove(&destroy.listener.link);
+	wl_list_remove(&request_move.listener.link);
+	wl_list_remove(&request_resize.listener.link);
+	wl_list_remove(&request_maximize.listener.link);
+	wl_list_remove(&request_fullscreen.listener.link);
 
-	free(toplevel);*/
 }
 
+void AppWindow::beginInteractive(enum tinywl_cursor_mode mode, uint32_t edges) {
+	/* This function sets up an interactive move or resize operation, where the
+	 * compositor stops propegating pointer events to clients and instead
+	 * consumes them itself, to move or resize windows. */
 
+	server->setGrabbedWindow(this);
+	cursor_mode = mode;
 
-static void xdg_toplevel_request_move(
-		struct wl_listener *listener, void *data) {
-    printf("xdg_toplevel_request_move\n");
+	if (mode == TINYWL_CURSOR_MOVE) {
+		server->getCursor()->setGrabX(server->getCursor()->getCursor()->x - getSceneTree()->node.x);
+		server->getCursor()->setGrabY(server->getCursor()->getCursor()->y - getSceneTree()->node.y);
+	} else {
+		struct wlr_box *geo_box = &getXdgTopLevel()->base->geometry;
+
+		double border_x = (getSceneTree()->node.x + geo_box->x) +
+			((edges & WLR_EDGE_RIGHT) ? geo_box->width : 0);
+		double border_y = (getSceneTree()->node.y + geo_box->y) +
+			((edges & WLR_EDGE_BOTTOM) ? geo_box->height : 0);
+		server->getCursor()->setGrabX(server->getCursor()->getCursor()->x - border_x);
+		server->getCursor()->setGrabY(server->getCursor()->getCursor()->y - border_y);
+
+		wlr_box gb = *geo_box;
+		gb.x += getSceneTree()->node.x;
+		gb.y += getSceneTree()->node.y;
+		server->setGrabGeoBox(gb);
+
+		server->setResizeEdgets(edges);
+	}
+}
+
+void AppWindow::onRequestMove(wl_listener *listener, void *data) {
+    printf("onRequestMove\n");
 	/* This event is raised when a client would like to begin an interactive
 	 * move, typically because the user clicked on their client-side
 	 * decorations. Note that a more sophisticated compositor should check the
 	 * provided serial against a list of button press serials sent to this
 	 * client, to prevent the client from requesting this whenever they want. 
-	struct tinywl_toplevel *toplevel = wl_container_of(listener, toplevel, request_move);
-	begin_interactive(toplevel, TINYWL_CURSOR_MOVE, 0);*/
+	struct tinywl_toplevel *toplevel = wl_container_of(listener, toplevel, request_move); */
+	beginInteractive(TINYWL_CURSOR_MOVE, 0);
 }
 
 static void xdg_toplevel_request_resize(
@@ -144,19 +149,19 @@ AppWindow::AppWindow(Server *server, wlr_xdg_toplevel *xdg_toplevel) {
     scene_tree->node.data = this;
     xdg_toplevel->base->data = scene_tree;
 
-    map.listener.notify = xdg_toplevel_map;
+    map.listener.notify = NOTIFIER_ND(AppWindow, onMap);
 	wl_signal_add(&xdg_toplevel->base->surface->events.map, &map.listener);
-	unmap.listener.notify = xdg_toplevel_unmap;
+	unmap.listener.notify = NOTIFIER_ND(AppWindow, onUnmap);
 	wl_signal_add(&xdg_toplevel->base->surface->events.unmap, &unmap.listener);
-	commit.listener.notify = xdg_toplevel_commit;
+	commit.listener.notify = NOTIFIER_ND(AppWindow, onCommit);
 	wl_signal_add(&xdg_toplevel->base->surface->events.commit, &commit.listener);
 
-	destroy.listener.notify = xdg_toplevel_destroy;
+	destroy.listener.notify = NOTIFIER(AppWindow, void, onDestroy);
 	wl_signal_add(&xdg_toplevel->events.destroy, &destroy.listener);
 
 
 	// cotd 
-	request_move.listener.notify = xdg_toplevel_request_move;
+	request_move.listener.notify = NOTIFIER(AppWindow, void, onRequestMove);
 	wl_signal_add(&xdg_toplevel->events.request_move, &request_move.listener);
 	request_resize.listener.notify = xdg_toplevel_request_resize;
 	wl_signal_add(&xdg_toplevel->events.request_resize, &request_resize.listener);
@@ -164,6 +169,7 @@ AppWindow::AppWindow(Server *server, wlr_xdg_toplevel *xdg_toplevel) {
 	wl_signal_add(&xdg_toplevel->events.request_maximize, &request_maximize.listener);
 	request_fullscreen.listener.notify = xdg_toplevel_request_fullscreen;
 	wl_signal_add(&xdg_toplevel->events.request_fullscreen, &request_fullscreen.listener);
+
 
 }
 

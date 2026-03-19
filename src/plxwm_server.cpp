@@ -80,7 +80,6 @@ void Server::focus(AppWindow *wnd) {
 }
 
 void Server::onRequestCursor(wl_listener *listener, wlr_seat_pointer_request_set_cursor_event *event) {
-    printf("ON onRequestCursor:\n");
 
 	/* This event is raised by the seat when a client provides a cursor image */
 	struct wlr_seat_client *focused_client = seat->pointer_state.focused_client;
@@ -97,19 +96,8 @@ void Server::onRequestCursor(wl_listener *listener, wlr_seat_pointer_request_set
 	}
 }
 
-static void seat_request_cursor(struct wl_listener *listener, void *data) {
-
-    Server *server = ((Listener<Server> *)listener)->owner;
-	wlr_seat_pointer_request_set_cursor_event *event = (wlr_seat_pointer_request_set_cursor_event *)data;
-
-	server->onRequestCursor(&((Listener<Server> *)listener)->listener, event);
-
-	
-}
-
 void Server::onNewOutput(wl_listener *listener, wlr_output *output) {
-    printf("ON onNewOutput\n");
-
+	printf("onNewOutput\n");
 	/* Configures the output created by the backend to use our allocator
 	 * and our renderer. Must be done once, before commiting the output */
 	wlr_output_init_render(output, allocator, renderer);
@@ -153,7 +141,6 @@ void Server::onNewOutput(wl_listener *listener, wlr_output *output) {
 }
 
 void Server::onNewInput(wl_listener *listener, wlr_input_device *device) {
-    printf("ON onNewInput\n");
 
 	/* This event is raised by the backend when a new input device becomes
 	 * available. */
@@ -194,46 +181,61 @@ void Server::onNewAppWindow(wl_listener *listener, wlr_xdg_toplevel *xdg_topleve
 	printf("NEW WND: %p\n", aw);
 }
 
-void Server::server_new_output(struct wl_listener *listener, void *data) {
-    
-    Server *server = ((Listener<Server> *)listener)->owner;
-	wlr_output *output = (wlr_output *)data;
-
-    server->onNewOutput(&((Listener<Server> *)listener)->listener, output);
-}
-
-void Server::server_new_input(struct wl_listener *listener, void *data) {
-    Server *server = ((Listener<Server> *)listener)->owner;
-    server->onNewInput(&((Listener<Server> *)listener)->listener, (wlr_input_device *)data);
-}
-
-static void server_new_xdg_toplevel(struct wl_listener *listener, void *data) {
-
-    Server *server = ((Listener<Server> *)listener)->owner;
-    server->onNewAppWindow(&((Listener<Server> *)listener)->listener, (wlr_xdg_toplevel *)data);
-}
-
-static void server_new_xdg_popup(struct wl_listener *listener, void *data) {
+void Server::onNewPopup(wl_listener *listener, wlr_xdg_popup *event) {
     printf("ON server_new_xdg_popup\n");
 
+/*
+	// * This event is raised when a client creates a new popup. 
+	struct wlr_xdg_popup *xdg_popup = data;
+
+	struct tinywl_popup *popup = calloc(1, sizeof(*popup));
+	popup->xdg_popup = xdg_popup;
+
+	// We must add xdg popups to the scene graph so they get rendered. The
+	//// * wlroots scene graph provides a helper for this, but to use it we must
+	// * provide the proper parent scene node of the xdg popup. To enable this,
+	// * we always set the user data field of xdg_surfaces to the corresponding
+	// * scene node. 
+	struct wlr_xdg_surface *parent = wlr_xdg_surface_try_from_wlr_surface(xdg_popup->parent);
+	assert(parent != NULL);
+	struct wlr_scene_tree *parent_tree = parent->data;
+	xdg_popup->base->data = wlr_scene_xdg_surface_create(parent_tree, xdg_popup->base);
+
+	popup->commit.notify = xdg_popup_commit;
+	wl_signal_add(&xdg_popup->base->surface->events.commit, &popup->commit);
+
+	popup->destroy.notify = xdg_popup_destroy;
+	wl_signal_add(&xdg_popup->events.destroy, &popup->destroy);
+*/
 }
 
-static void seat_request_set_selection(struct wl_listener *listener, void *data) {
+void Server::onSetSelection(struct wl_listener *listener, wlr_seat_request_set_selection_event *data) {
     printf("ON seat_request_set_selection\n");
 
+	/* This event is raised by the seat when a client wants to set the selection,
+	 * usually when the user copies something. wlroots allows compositors to
+	 * ignore such requests if they so choose, but in tinywl we always honor
+	 
+	struct tinywl_server *server = wl_container_of(
+			listener, server, request_set_selection);
+	struct wlr_seat_request_set_selection_event *event = data;
+	wlr_seat_set_selection(server->seat, event->source, event->serial); */
 }
 
 Server::Server() {
     new_output.owner = this;
-	new_output.listener.notify = server_new_output;
+
+	new_output.listener.notify = NOTIFIER(Server, wlr_output, onNewOutput);
 
     new_input.owner = this;
 
     new_xdg_toplevel.owner = this;
     new_xdg_popup.owner = this;
 
-	new_xdg_toplevel.listener.notify = server_new_xdg_toplevel;
-	new_xdg_popup.listener.notify = server_new_xdg_popup;
+	new_xdg_toplevel.listener.notify = NOTIFIER(Server, wlr_xdg_toplevel, onNewAppWindow);
+	new_xdg_popup.listener.notify = NOTIFIER(Server, wlr_xdg_popup, onNewPopup);
+
+
 
 
 	request_cursor.owner = this;
@@ -293,17 +295,18 @@ void Server::init() {
 	 */
 	wl_list_init(&keyboards);
 
-	new_input.listener.notify = server_new_input;
+	new_input.listener.notify = NOTIFIER(Server, wlr_input_device, onNewInput);
 	wl_signal_add(&backend->events.new_input, &new_input.listener);
-
+	
 	seat = wlr_seat_create(display, "seat0");
 
 	printf("SET SEAT: %p to %p\n", this, seat);
 
-	request_cursor.listener.notify = seat_request_cursor;
+	request_cursor.listener.notify = NOTIFIER(Server, wlr_seat_pointer_request_set_cursor_event, onRequestCursor);
+
 	wl_signal_add(&seat->events.request_set_cursor,
 			&request_cursor.listener);
-	request_set_selection.listener.notify = seat_request_set_selection;
+	request_set_selection.listener.notify = NOTIFIER(Server, wlr_seat_request_set_selection_event, onSetSelection);
 	wl_signal_add(&seat->events.request_set_selection,
 			&request_set_selection.listener);
 

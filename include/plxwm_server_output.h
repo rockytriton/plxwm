@@ -15,12 +15,6 @@ public:
     void onRequestState(wl_listener *listener, void *data);
     void onDestroy(wl_listener *listener, void *data);
 
-    static void output_frame(struct wl_listener *listener, void *data);
-
-    static void output_request_state(struct wl_listener *listener, void *data);
-
-    static void output_destroy(struct wl_listener *listener, void *data);
-
 private:
 	wl_list link;
 	Server *server;

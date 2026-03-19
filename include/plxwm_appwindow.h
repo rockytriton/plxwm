@@ -15,7 +15,11 @@ public:
     void onCommit(wl_listener *listener);
     void onMap(wl_listener *listener);
     void onUnmap(wl_listener *listener);
+    void onDestroy(struct wl_listener *listener, void *data);
+    void onRequestMove(wl_listener *listener, void *data);
 
+    void beginInteractive(enum tinywl_cursor_mode mode, uint32_t edges);
+    
     const char *getName() { return "name"; }
 
     wlr_surface *getSurface() { return xdg_toplevel->base->surface; }

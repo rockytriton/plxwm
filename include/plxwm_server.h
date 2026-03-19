@@ -15,8 +15,8 @@ public:
 	void onNewAppWindow(wl_listener *listener, wlr_xdg_toplevel *xdg_toplevel);
 	void onRequestCursor(wl_listener *listener, wlr_seat_pointer_request_set_cursor_event *event);
 
-    static void server_new_output(wl_listener *listener, void *data);
-    static void server_new_input(struct wl_listener *listener, void *data);
+	void onNewPopup(wl_listener *listener, wlr_xdg_popup *event);
+	void onSetSelection(struct wl_listener *listener, wlr_seat_request_set_selection_event *data);
 
     wl_list *getOutputs() { return &outputs; }
     wlr_scene *getScene() { return scene; }
@@ -32,8 +32,6 @@ public:
 
     Cursor *getCursor() { return cursor; }
 
-    //tinywl_toplevel *getTopLevel() { return grabbed_toplevel; }
-
 	AppWindow *getGrabbedWindow() { return grabbedWindow; }
 
 	AppWindow *getWindowAt(double lx, double ly, double *sx, double *sy);
@@ -43,6 +41,11 @@ public:
 	void focus(AppWindow *wnd);
 
 	wl_list *getAppWindows() { return &appWindows; }
+
+
+	wlr_box getGrabGeoBox() { return grab_geobox; }
+	void setGrabGeoBox(wlr_box g) { grab_geobox = g; }
+	void setResizeEdgets(uint32_t e) { resize_edges = e; }
 
 private:
 	wl_display *display;
@@ -75,6 +78,7 @@ private:
 	Listener<Server> request_set_selection;
 	wl_list keyboards;
 	//tinywl_toplevel *grabbed_toplevel;
+
 	wlr_box grab_geobox;
 	uint32_t resize_edges;
 

@@ -2,15 +2,10 @@
 #include "plxwm_server.h"
 #include "plxwm_appwindow.h"
 
+tinywl_cursor_mode cursor_mode;
+
 namespace PlxWM {
 
-enum tinywl_cursor_mode {
-	TINYWL_CURSOR_PASSTHROUGH,
-	TINYWL_CURSOR_MOVE,
-	TINYWL_CURSOR_RESIZE,
-};
-
-tinywl_cursor_mode cursor_mode;
 
 
 void Cursor::onMove(uint32_t time) {
@@ -68,21 +63,17 @@ void Cursor::onMove(uint32_t time) {
 }
 
 
-void Cursor::server_cursor_motion(wl_listener *listener, void *data) {
+void Cursor::onMotion(wl_listener *listener, wlr_pointer_motion_event *event) {
     
 	/* This event is forwarded by the cursor when a pointer emits a _relative_
 	 * pointer motion event (i.e. a delta) */
-    Cursor *kb = ((Listener<Cursor> *)listener)->owner;
-    
-	struct wlr_pointer_motion_event *event = (wlr_pointer_motion_event *)data;
-
-    wlr_cursor_move(kb->cursor, &event->pointer->base,
+    wlr_cursor_move(cursor, &event->pointer->base,
 			event->delta_x, event->delta_y);
 
-    kb->onMove(event->time_msec);
+    onMove(event->time_msec);
 }
 
-void Cursor::server_cursor_motion_absolute(wl_listener *listener, void *data) {
+void Cursor::onMotionAbsolute(wl_listener *listener, wlr_pointer_motion_absolute_event *event) {
 
 	/* This event is forwarded by the cursor when a pointer emits an _absolute_
 	 * motion event, from 0..1 on each axis. This happens, for example, when
@@ -90,51 +81,51 @@ void Cursor::server_cursor_motion_absolute(wl_listener *listener, void *data) {
 	 * move the mouse over the window. You could enter the window from any edge,
 	 * so we have to warp the mouse there. There is also some hardware which
 	 * emits these events. */
-    Cursor *kb = ((Listener<Cursor> *)listener)->owner;
-    
-	struct wlr_pointer_motion_absolute_event *event = (wlr_pointer_motion_absolute_event *)data;
+	wlr_cursor_warp_absolute(cursor, &event->pointer->base, event->x, event->y);
 
-	wlr_cursor_warp_absolute(kb->cursor, &event->pointer->base, event->x, event->y);
-
-    kb->onMove(event->time_msec);
+    onMove(event->time_msec);
 
 }
 
-void Cursor::server_cursor_button(struct wl_listener *listener, void *data) {
-    printf("ON server_cursor_button\n");
-    Cursor *cur = ((Listener<Cursor> *)listener)->owner;
-
+void Cursor::onButton(struct wl_listener *listener, wlr_pointer_button_event *event) {
 	/* This event is forwarded by the cursor when a pointer emits a button
 	 * event. */
-	struct wlr_pointer_button_event *event = (wlr_pointer_button_event *)data;
+	
 	/* Notify the client with pointer focus that a button press has occurred */
-	wlr_seat_pointer_notify_button(cur->server->getSeat(),
+	wlr_seat_pointer_notify_button(server->getSeat(),
 			event->time_msec, event->button, event->state);
 			
 	if (event->state == WL_POINTER_BUTTON_STATE_RELEASED) {
 		/* If you released any buttons, we exit interactive move/resize mode. */
 		cursor_mode = TINYWL_CURSOR_PASSTHROUGH;
-		cur->server->setGrabbedWindow(NULL);
+		server->setGrabbedWindow(NULL);
 		
 	} else {
 		/* Focus that client if the button was _pressed_ */
 		double sx, sy;
-		struct wlr_surface *surface = NULL;
 
-		AppWindow *wnd = cur->server->getWindowAt(cur->cursor->x, cur->cursor->y, &sx, &sy);
+		AppWindow *wnd = server->getWindowAt(cursor->x, cursor->y, &sx, &sy);
 
-		cur->server->focus(wnd);
+		server->focus(wnd);
 	}
 }
 
-static void server_cursor_axis(struct wl_listener *listener, void *data) {
+void Cursor::onCursorAxis(wl_listener *listener, wlr_pointer_axis_event *event) {
     printf("ON server_cursor_axis\n");
 
+	/* This event is forwarded by the cursor when a pointer emits an axis event,
+	 * for example when you move the scroll wheel. 
+	struct tinywl_server *server =
+		wl_container_of(listener, server, cursor_axis);
+	struct wlr_pointer_axis_event *event = data;
+	// Notify the client with pointer focus of the axis event. 
+	wlr_seat_pointer_notify_axis(server->seat,
+			event->time_msec, event->orientation, event->delta,
+			event->delta_discrete, event->source, event->relative_direction); */
 }
 
-void Cursor::server_cursor_frame(struct wl_listener *listener, void *data) {
-    Cursor *kb = ((Listener<Cursor> *)listener)->owner;
-	wlr_seat_pointer_notify_frame(kb->server->getSeat());
+void Cursor::onCursorFrame(struct wl_listener *listener, void *data) {
+	wlr_seat_pointer_notify_frame(server->getSeat());
 }
 
 Cursor::Cursor(Server *server) {
@@ -174,16 +165,16 @@ void Cursor::init() {
 	 * And more comments are sprinkled throughout the notify functions above.
 	 */
 	cursor_mode = TINYWL_CURSOR_PASSTHROUGH;
-	cursor_motion.listener.notify = server_cursor_motion;
+	cursor_motion.listener.notify = NOTIFIER(Cursor, wlr_pointer_motion_event, onMotion);
 	wl_signal_add(&cursor->events.motion, &cursor_motion.listener);
-	cursor_motion_absolute.listener.notify = server_cursor_motion_absolute;
+	cursor_motion_absolute.listener.notify = NOTIFIER(Cursor, wlr_pointer_motion_absolute_event, onMotionAbsolute);
 	wl_signal_add(&cursor->events.motion_absolute,
 			&cursor_motion_absolute.listener);
-	cursor_button.listener.notify = server_cursor_button;
+	cursor_button.listener.notify = NOTIFIER(Cursor, wlr_pointer_button_event, onButton);
 	wl_signal_add(&cursor->events.button, &cursor_button.listener);
-	cursor_axis.listener.notify = server_cursor_axis;
+	cursor_axis.listener.notify = NOTIFIER(Cursor, wlr_pointer_axis_event, onCursorAxis);
 	wl_signal_add(&cursor->events.axis, &cursor_axis.listener);
-	cursor_frame.listener.notify = server_cursor_frame;
+	cursor_frame.listener.notify = NOTIFIER(Cursor, void, onCursorFrame);
 	wl_signal_add(&cursor->events.frame, &cursor_frame.listener);
 
 }
