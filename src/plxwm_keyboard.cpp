@@ -8,9 +8,22 @@ Keyboard::Keyboard(Server *server, wlr_input_device *device) {
     this->server = server;
     this->device = device;
 
-    modifiers.owner = this;
-    key.owner = this;
-    destroy.owner = this;
+	/* We need to prepare an XKB keymap and assign it to the keyboard. This
+	 * assumes the defaults (e.g. layout = "us"). */
+	struct xkb_context *context = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
+	struct xkb_keymap *keymap = xkb_keymap_new_from_names(context, NULL,
+		XKB_KEYMAP_COMPILE_NO_FLAGS);
+
+	wlr_keyboard_set_keymap(keyboard, keymap);
+	xkb_keymap_unref(keymap);
+	xkb_context_unref(context);
+	wlr_keyboard_set_repeat_info(keyboard, 25, 600);
+
+	modifiers = make_unique<Signal<&Keyboard::onModifiers>>(this, &keyboard->events.modifiers);
+	key = make_unique<Signal<&Keyboard::onKey>>(this, &keyboard->events.key);
+	destroy = make_unique<Signal<&Keyboard::onDestroy>>(this, &device->events.destroy);
+
+	wlr_seat_set_keyboard(server->getSeat(), keyboard);
 }
 
 bool Keyboard::handleKeyBinding(xkb_keysym_t sym) {
@@ -44,35 +57,7 @@ bool Keyboard::handleKeyBinding(xkb_keysym_t sym) {
 }
 
 
-void Keyboard::init() {
-    
-	/* We need to prepare an XKB keymap and assign it to the keyboard. This
-	 * assumes the defaults (e.g. layout = "us"). */
-	struct xkb_context *context = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
-	struct xkb_keymap *keymap = xkb_keymap_new_from_names(context, NULL,
-		XKB_KEYMAP_COMPILE_NO_FLAGS);
-
-	wlr_keyboard_set_keymap(keyboard, keymap);
-	xkb_keymap_unref(keymap);
-	xkb_context_unref(context);
-	wlr_keyboard_set_repeat_info(keyboard, 25, 600);
-
-	/* Here we set up listeners for keyboard events. */
-	modifiers.listener.notify = NOTIFIER_ND(Keyboard, onModifiers);
-	wl_signal_add(&keyboard->events.modifiers, &modifiers.listener);
-	key.listener.notify = NOTIFIER(Keyboard, wlr_keyboard_key_event, onKey);
-	wl_signal_add(&keyboard->events.key, &key.listener);
-	destroy.listener.notify = NOTIFIER_ND(Keyboard, onDestroy);
-	wl_signal_add(&device->events.destroy, &destroy.listener);
-
-	wlr_seat_set_keyboard(server->getSeat(), keyboard);
-
-	/* And add the keyboard to our list of keyboards */
-	//wl_list_insert(server->getKeyboards(), &link);
-}
-
-
-void Keyboard::onModifiers(wl_listener *listener) {
+void Keyboard::onModifiers(wl_listener *listener, void *data) {
     printf("onModifiers\n");
 
 	// This event is raised when a modifier key, such as shift or alt, is
@@ -122,17 +107,18 @@ void Keyboard::onKey(wl_listener *listener, wlr_keyboard_key_event *event) {
 	}
 }
 
-void Keyboard::onDestroy(wl_listener *listener) {
+void Keyboard::onDestroy(wl_listener *listener, void *data) {
     printf("onDestroy\n");
 
 	/* This event is raised by the keyboard base wlr_input_device to signal
 	 * the destruction of the wlr_keyboard. It will no longer receive events
 	 * and should be destroyed.
 	 */
-     
-	wl_list_remove(&modifiers.listener.link);
-	wl_list_remove(&key.listener.link);
-	wl_list_remove(&destroy.listener.link);
+    
+	modifiers->cleanup();
+	key->cleanup();
+	destroy->cleanup();
+	
 	//wl_list_remove(&link);
 }
 

@@ -349,7 +349,6 @@ void Server::init() {
 	wl_signal_add(&xdg_shell->events.new_popup, &new_xdg_popup.listener);
 
     cursor = new Cursor(this);
-    cursor->init();
 
 	/*
 	 * Configures a seat, which is a single "seat" at which a user sits and
@@ -398,7 +397,6 @@ void Server::init() {
 
 void Server::newKeyboard(wlr_input_device *device) {
     Keyboard *kb = new Keyboard(this, device);
-    kb->init();
 	keyboards.push_back(kb);
 }
 

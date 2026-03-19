@@ -11,6 +11,8 @@
 #include <type_traits>
 
 #include <memory>
+using std::make_unique;
+using std::unique_ptr;
 
 #include <vector>
 using std::vector;
@@ -50,47 +52,7 @@ extern "C" {
 	obj->Z(&((Listener<X> *)listener)->listener); \
 }
 
-
-struct tinywl_output {
-	struct wl_list link;
-	struct tinywl_server *server;
-	struct wlr_output *wlr_output;
-	struct wl_listener frame;
-	struct wl_listener request_state;
-	struct wl_listener destroy;
-};
-
-struct tinywl_toplevel {
-	struct wl_list link;
-	struct tinywl_server *server;
-	struct wlr_xdg_toplevel *xdg_toplevel;
-	struct wlr_scene_tree *scene_tree;
-	struct wl_listener map;
-	struct wl_listener unmap;
-	struct wl_listener commit;
-	struct wl_listener destroy;
-	struct wl_listener request_move;
-	struct wl_listener request_resize;
-	struct wl_listener request_maximize;
-	struct wl_listener request_fullscreen;
-};
-
-struct tinywl_popup {
-	struct wlr_xdg_popup *xdg_popup;
-	struct wl_listener commit;
-	struct wl_listener destroy;
-};
-
-struct tinywl_keyboard {
-	struct wl_list link;
-	struct tinywl_server *server;
-	struct wlr_keyboard *wlr_keyboard;
-
-	struct wl_listener modifiers;
-	struct wl_listener key;
-	struct wl_listener destroy;
-};
-
+//wrapper for wayland listeners
 template<typename T>
 struct Listener {
     wl_listener listener;
@@ -99,30 +61,12 @@ struct Listener {
 
 #include <xkbcommon/xkbcommon.h>
 
-
-enum tinywl_cursor_mode {
-	TINYWL_CURSOR_PASSTHROUGH,
-	TINYWL_CURSOR_MOVE,
-	TINYWL_CURSOR_RESIZE,
-};
-
-extern tinywl_cursor_mode cursor_mode;
-
-// 1. The base template (empty)
+//used to extract traits to make template function usage simpler
 template <typename T>
 struct member_func_traits;
 
-// 2. The specialization that "extracts" the types
-// Note: We use 'struct wl_listener' to match Wayland's C headers
 template <typename Class, typename Arg>
 struct member_func_traits<void (Class::*)(struct wl_listener*, Arg*)> {
-    using class_type = Class;
-    using arg_type = Arg;
-};
-
-// 3. Optional: Add a specialization for 'const' member functions just in case
-template <typename Class, typename Arg>
-struct member_func_traits<void (Class::*)(struct wl_listener*, Arg*) const> {
     using class_type = Class;
     using arg_type = Arg;
 };

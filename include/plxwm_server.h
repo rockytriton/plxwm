@@ -1,8 +1,9 @@
 #include "common.h"
 
+#include "plxwm_cursor.h"
+
 namespace PlxWM {
-    
-class Cursor;
+
 class AppWindow;
 class Keyboard;
 class ServerOutput;
@@ -58,6 +59,8 @@ public:
     void setGrabX(double x) { grab_x = x; }
     void setGrabY(double y) { grab_y = y; }
 
+    void setCursorMode(CursorMode mode) { cursor->setCursorMode(mode); }
+
 private:
 	wl_display *display;
 	wlr_backend *backend;
@@ -74,7 +77,7 @@ private:
 	AppWindow *grabbedWindow;
 	//wl_list appWindows;
 
-	vector<AppWindow *> windows;
+	vector<std::unique_ptr<AppWindow>> windows;
 
     Listener<Server> new_output;
 

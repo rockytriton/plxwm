@@ -1,6 +1,7 @@
 #pragma once
 #include "common.h"
 #include "plxwm_signal.h"
+#include "plxwm_cursor.h"
 
 namespace PlxWM {
 class Server;
@@ -21,7 +22,7 @@ public:
     void onRequestMaximize(wl_listener *listener, void *data);
     void onRequestFullScreen(wl_listener *listener, void *data);
 
-    void beginInteractive(enum tinywl_cursor_mode mode, uint32_t edges);
+    void beginInteractive(CursorMode mode, uint32_t edges);
 
     const char *getName() { return "name"; }
 
@@ -33,17 +34,15 @@ private:
 	wlr_xdg_toplevel *xdg_toplevel;
 	wlr_scene_tree *scene_tree;
 
-    wl_list link;
+    unique_ptr<Signal<&AppWindow::onRequestMove>> move;
+    unique_ptr<Signal<&AppWindow::onRequestResize>> resize;
+    unique_ptr<Signal<&AppWindow::onRequestMaximize>> maximize;
+    unique_ptr<Signal<&AppWindow::onRequestFullScreen>> fullscreen;
 
-    std::unique_ptr<Signal<&AppWindow::onRequestMove>> move;
-    std::unique_ptr<Signal<&AppWindow::onRequestResize>> resize;
-    std::unique_ptr<Signal<&AppWindow::onRequestMaximize>> maximize;
-    std::unique_ptr<Signal<&AppWindow::onRequestFullScreen>> fullscreen;
-
-    std::unique_ptr<Signal<&AppWindow::onMap>> map;
-    std::unique_ptr<Signal<&AppWindow::onUnmap>> unmap;
-    std::unique_ptr<Signal<&AppWindow::onCommit>> commit;
-    std::unique_ptr<Signal<&AppWindow::onDestroy>> destroy;
+    unique_ptr<Signal<&AppWindow::onMap>> map;
+    unique_ptr<Signal<&AppWindow::onUnmap>> unmap;
+    unique_ptr<Signal<&AppWindow::onCommit>> commit;
+    unique_ptr<Signal<&AppWindow::onDestroy>> destroy;
 
 };
 

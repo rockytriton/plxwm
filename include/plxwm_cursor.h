@@ -1,17 +1,21 @@
 #pragma once
 
 #include "common.h"
+#include "plxwm_signal.h"
 
 namespace PlxWM {
 
 class Server;
 
+enum CursorMode {
+	TINYWL_CURSOR_PASSTHROUGH,
+	TINYWL_CURSOR_MOVE,
+	TINYWL_CURSOR_RESIZE,
+};
+
 class Cursor {
 public:
-    Cursor() {}
     Cursor(Server *server);
-
-    void init();
 
     wlr_cursor *getCursor() { return cursor; }
 
@@ -22,16 +26,21 @@ public:
     void onCursorFrame(wl_listener *listener, void *data);
     void onCursorAxis(wl_listener *listener, wlr_pointer_axis_event *event);
 
+    void setCursorMode(CursorMode mode) { cursor_mode = mode; }
+
 private:
     Server *server;
 
 	wlr_cursor *cursor;
 	wlr_xcursor_manager *cursor_mgr;
-	Listener<Cursor> cursor_motion;
-	Listener<Cursor> cursor_motion_absolute;
-	Listener<Cursor> cursor_button;
-	Listener<Cursor> cursor_axis;
-	Listener<Cursor> cursor_frame;
+
+    unique_ptr<Signal<&Cursor::onMotion>> motion;
+    unique_ptr<Signal<&Cursor::onMotionAbsolute>> motionAbsolute;
+    unique_ptr<Signal<&Cursor::onButton>> button;
+    unique_ptr<Signal<&Cursor::onCursorAxis>> axis;
+    unique_ptr<Signal<&Cursor::onCursorFrame>> frame;
+
+    CursorMode cursor_mode;
 };
 
 }

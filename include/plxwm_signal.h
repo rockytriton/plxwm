@@ -1,3 +1,5 @@
+#pragma once
+
 #include "common.h"
 
 namespace PlxWM {
@@ -24,12 +26,18 @@ public:
         wl_signal_add(signal, &listenerWrapper.listener);
     }
 
+    static std::unique_ptr<Signal<Func>>  create(C *instance, wl_signal *signal) {
+        return std::make_unique<Signal<Func>>(instance, signal);
+    }
+
     ~Signal() {
-        
+        cleanup();
     }
 
     void cleanup() {
-        wl_list_remove(&listenerWrapper.listener.link);
+        if (listenerWrapper.listener.link.next != nullptr) {
+            wl_list_remove(&listenerWrapper.listener.link);
+        }
     }
 
 private:
