@@ -1,5 +1,6 @@
 #include "plxwm_cursor.h"
 #include "plxwm_server.h"
+#include "plxwm_appwindow.h"
 
 namespace PlxWM {
 
@@ -12,19 +13,14 @@ enum tinywl_cursor_mode {
 tinywl_cursor_mode cursor_mode;
 
 
-void Cursor::onMove(wlr_pointer_motion_event *event) {
-
-    wlr_cursor_move(cursor, &event->pointer->base,
-			event->delta_x, event->delta_y);
-
-    uint32_t time = event->time_msec;
+void Cursor::onMove(uint32_t time) {
 
 	/* If the mode is non-passthrough, delegate to those functions. */
 	if (cursor_mode == TINYWL_CURSOR_MOVE) {
 		
-        struct tinywl_toplevel *toplevel = server->getTopLevel();
+        AppWindow *appWindow = server->getGrabbedWindow();
 
-        wlr_scene_node_set_position(&toplevel->scene_tree->node,
+        wlr_scene_node_set_position(&appWindow->getSceneTree()->node,
             cursor->x - grab_x,
             cursor->y - grab_y);
 
@@ -39,15 +35,16 @@ void Cursor::onMove(wlr_pointer_motion_event *event) {
 	struct wlr_seat *seat = server->getSeat();
 	struct wlr_surface *surface = NULL;
 	
-    //TODO: struct tinywl_toplevel *toplevel = desktop_toplevel_at(server,
-		//	server->cursor->x, server->cursor->y, &surface, &sx, &sy);
+	AppWindow *wnd = server->getWindowAt(cursor->x, cursor->y, &sx, &sy);
 
-	//if (!toplevel) {
+	if (wnd) {
+		surface = wnd->getSurface();
+	} else {
 		/* If there's no toplevel under the cursor, set the cursor image to a
 		 * default. This is what makes the cursor image appear when you move it
 		 * around the screen, not over any toplevels. */
 		wlr_cursor_set_xcursor(cursor, cursor_mgr, "default");
-	//}
+	}
 
 	if (surface) {
 		/*
@@ -71,35 +68,63 @@ void Cursor::onMove(wlr_pointer_motion_event *event) {
 }
 
 
-void Cursor::server_cursor_motion(struct wl_listener *listener, void *data) {
-    printf("ON server_cursor_motion\n");
+void Cursor::server_cursor_motion(wl_listener *listener, void *data) {
+    
 	/* This event is forwarded by the cursor when a pointer emits a _relative_
 	 * pointer motion event (i.e. a delta) */
     Cursor *kb = ((Listener<Cursor> *)listener)->owner;
     
 	struct wlr_pointer_motion_event *event = (wlr_pointer_motion_event *)data;
 
-    kb->onMove(event);
+    wlr_cursor_move(kb->cursor, &event->pointer->base,
+			event->delta_x, event->delta_y);
 
-	/* The cursor doesn't move unless we tell it to. The cursor automatically
-	 * handles constraining the motion to the output layout, as well as any
-	 * special configuration applied for the specific input device which
-	 * generated the event. You can pass NULL for the device if you want to move
-	 * the cursor around without any input. */
-	
-
-	//process_cursor_motion(server, event->time_msec);
+    kb->onMove(event->time_msec);
 }
 
-static void server_cursor_motion_absolute(
-		struct wl_listener *listener, void *data) {
-    printf("ON server_cursor_motion_absolute\n");
+void Cursor::server_cursor_motion_absolute(wl_listener *listener, void *data) {
+
+	/* This event is forwarded by the cursor when a pointer emits an _absolute_
+	 * motion event, from 0..1 on each axis. This happens, for example, when
+	 * wlroots is running under a Wayland window rather than KMS+DRM, and you
+	 * move the mouse over the window. You could enter the window from any edge,
+	 * so we have to warp the mouse there. There is also some hardware which
+	 * emits these events. */
+    Cursor *kb = ((Listener<Cursor> *)listener)->owner;
+    
+	struct wlr_pointer_motion_absolute_event *event = (wlr_pointer_motion_absolute_event *)data;
+
+	wlr_cursor_warp_absolute(kb->cursor, &event->pointer->base, event->x, event->y);
+
+    kb->onMove(event->time_msec);
 
 }
 
-static void server_cursor_button(struct wl_listener *listener, void *data) {
+void Cursor::server_cursor_button(struct wl_listener *listener, void *data) {
     printf("ON server_cursor_button\n");
+    Cursor *cur = ((Listener<Cursor> *)listener)->owner;
 
+	/* This event is forwarded by the cursor when a pointer emits a button
+	 * event. */
+	struct wlr_pointer_button_event *event = (wlr_pointer_button_event *)data;
+	/* Notify the client with pointer focus that a button press has occurred */
+	wlr_seat_pointer_notify_button(cur->server->getSeat(),
+			event->time_msec, event->button, event->state);
+			
+	if (event->state == WL_POINTER_BUTTON_STATE_RELEASED) {
+		/* If you released any buttons, we exit interactive move/resize mode. */
+		cursor_mode = TINYWL_CURSOR_PASSTHROUGH;
+		cur->server->setGrabbedWindow(NULL);
+		
+	} else {
+		/* Focus that client if the button was _pressed_ */
+		double sx, sy;
+		struct wlr_surface *surface = NULL;
+
+		AppWindow *wnd = cur->server->getWindowAt(cur->cursor->x, cur->cursor->y, &sx, &sy);
+
+		cur->server->focus(wnd);
+	}
 }
 
 static void server_cursor_axis(struct wl_listener *listener, void *data) {
@@ -108,11 +133,8 @@ static void server_cursor_axis(struct wl_listener *listener, void *data) {
 }
 
 void Cursor::server_cursor_frame(struct wl_listener *listener, void *data) {
-    printf("ON server_cursor_frame\n");
-
     Cursor *kb = ((Listener<Cursor> *)listener)->owner;
 	wlr_seat_pointer_notify_frame(kb->server->getSeat());
-    //kb->onKey(&((Listener<Cursor> *)listener)->listener, (wlr_keyboard_key_event *)data);
 }
 
 Cursor::Cursor(Server *server) {

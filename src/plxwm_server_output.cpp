@@ -52,7 +52,7 @@ void ServerOutput::init() {
 }
 
 void ServerOutput::onFrame(wl_listener *listener, void *data) {
-    printf("onFrame\n");
+    //printf("onFrame\n");
 
 	/* This function is called every time an output is ready to display a frame,
 	 * generally at the output's refresh rate (e.g. 60Hz). */

@@ -35,6 +35,14 @@ bool Keyboard::handleKeyBinding(xkb_keysym_t sym) {
 	case XKB_KEY_Escape:
 		wl_display_terminate(server->getDisplay());
 		break;
+	case XKB_KEY_F1:
+		/* Cycle to the next toplevel */
+		//if (wl_list_length(&server->toplevels) < 2) {
+		//	break;
+		//}
+		//struct tinywl_toplevel *next_toplevel =
+		//	wl_container_of(server->toplevels.prev, next_toplevel, link);
+		//focus_toplevel(next_toplevel);
 	default:
 		return false;
 	} 
@@ -127,7 +135,7 @@ void Keyboard::onKey(wl_listener *listener, wlr_keyboard_key_event *event) {
 	}
 
 	if (!handled) {
-		// Otherwise, we pass it along to the client. 
+		// Otherwise, we pass it along to the client.
 		wlr_seat_set_keyboard(seat, keyboard);
 		wlr_seat_keyboard_notify_key(seat, event->time_msec, event->keycode, event->state);
 	}

@@ -3,6 +3,7 @@
 namespace PlxWM {
     
 class Cursor;
+class AppWindow;
 
 class Server {
 public:
@@ -11,6 +12,8 @@ public:
     void init();
     void onNewOutput(wl_listener *listener, wlr_output *output);
     void onNewInput(wl_listener *listener, wlr_input_device *device);
+	void onNewAppWindow(wl_listener *listener, wlr_xdg_toplevel *xdg_toplevel);
+	void onRequestCursor(wl_listener *listener, wlr_seat_pointer_request_set_cursor_event *event);
 
     static void server_new_output(wl_listener *listener, void *data);
     static void server_new_input(struct wl_listener *listener, void *data);
@@ -29,7 +32,17 @@ public:
 
     Cursor *getCursor() { return cursor; }
 
-    tinywl_toplevel *getTopLevel() { return grabbed_toplevel; }
+    //tinywl_toplevel *getTopLevel() { return grabbed_toplevel; }
+
+	AppWindow *getGrabbedWindow() { return grabbedWindow; }
+
+	AppWindow *getWindowAt(double lx, double ly, double *sx, double *sy);
+
+	void setGrabbedWindow(AppWindow *wnd) { grabbedWindow = wnd; }
+
+	void focus(AppWindow *wnd);
+
+	wl_list *getAppWindows() { return &appWindows; }
 
 private:
 	wl_display *display;
@@ -44,19 +57,24 @@ private:
 
     Cursor *cursor;
 
+	AppWindow *grabbedWindow;
+	wl_list appWindows;
+
+	vector<AppWindow *> windows;
+
     Listener<Server> new_output;
 
 	wlr_xdg_shell *xdg_shell;
 	Listener<Server> new_xdg_toplevel;
 	Listener<Server> new_xdg_popup;
-	wl_list toplevels;
+	//wl_list toplevels;
 
 	wlr_seat *seat;
 	Listener<Server> new_input;
 	Listener<Server> request_cursor;
 	Listener<Server> request_set_selection;
 	wl_list keyboards;
-	tinywl_toplevel *grabbed_toplevel;
+	//tinywl_toplevel *grabbed_toplevel;
 	wlr_box grab_geobox;
 	uint32_t resize_edges;
 

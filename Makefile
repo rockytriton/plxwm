@@ -12,7 +12,7 @@ BUILD_DIR = build
 SRC_DIR = src
 
 # List your source files (filenames only)
-SRCS_FILES = plxwm.cpp plxwm_server.cpp plxwm_server_output.cpp plxwm_keyboard.cpp plxwm_cursor.cpp
+SRCS_FILES = plxwm.cpp plxwm_server.cpp plxwm_server_output.cpp plxwm_keyboard.cpp plxwm_cursor.cpp plxwm_appwindow.cpp
 
 # Map the source filenames to their actual location in src/
 SRCS = $(addprefix $(SRC_DIR)/, $(SRCS_FILES))

@@ -2,14 +2,109 @@
 #include "plxwm_server_output.h"
 #include "plxwm_keyboard.h"
 #include "plxwm_cursor.h"
+#include "plxwm_appwindow.h"
 
 namespace PlxWM {
 
 
+AppWindow *Server::getWindowAt(double lx, double ly, double *sx, double *sy) {
+	wlr_scene_node *node = wlr_scene_node_at(&scene->tree.node, lx, ly, sx, sy);
+
+	if (node == NULL || node->type != WLR_SCENE_NODE_BUFFER) {
+		return NULL;
+	}
+
+	struct wlr_scene_buffer *scene_buffer = wlr_scene_buffer_from_node(node);
+	struct wlr_scene_surface *scene_surface =
+		wlr_scene_surface_try_from_buffer(scene_buffer);
+	if (!scene_surface) {
+		return NULL;
+	}
+
+	struct wlr_scene_tree *tree = node->parent;
+	while (tree != NULL && tree->node.data == NULL) {
+		tree = tree->node.parent;
+	}
+
+	return (AppWindow *)tree->node.data;
+}
+
+void Server::focus(AppWindow *wnd) {
+	if (wnd == NULL) {
+		return;
+	}
+
+	wlr_surface *prev_surface = seat->keyboard_state.focused_surface;
+	wlr_surface *surface = wnd->getSurface();
+
+	if (prev_surface == surface) {
+		/* Don't re-focus an already focused surface. */
+		return;
+	}
+
+	if (prev_surface) {
+		/*
+		 * Deactivate the previously focused surface. This lets the client know
+		 * it no longer has focus and the client will repaint accordingly, e.g.
+		 * stop displaying a caret.
+		 */
+		wlr_xdg_toplevel *prev_toplevel = wlr_xdg_toplevel_try_from_wlr_surface(prev_surface);
+
+		if (prev_toplevel != NULL) {
+			wlr_xdg_toplevel_set_activated(prev_toplevel, false);
+		}
+	}
+
+	wlr_keyboard *keyboard = wlr_seat_get_keyboard(seat);
+
+	/* Move the toplevel to the front */
+	wlr_scene_node_raise_to_top(&wnd->getSceneTree()->node);
+
+	wl_list_remove(wnd->getLink());
+	wl_list_insert(&appWindows, wnd->getLink());
+
+	/* Activate the new surface */
+	wlr_xdg_toplevel_set_activated(wnd->getXdgTopLevel(), true);
+
+
+	/*
+	 * Tell the seat to have the keyboard enter this surface. wlroots will keep
+	 * track of this and automatically send key events to the appropriate
+	 * clients without additional work on your part.
+	 */
+	if (keyboard != NULL) {
+		wlr_seat_keyboard_notify_enter(seat, surface,
+			keyboard->keycodes, keyboard->num_keycodes, &keyboard->modifiers);
+	}
+	printf("Focus set (%p to %p)\n", prev_surface, surface);
+}
+
+void Server::onRequestCursor(wl_listener *listener, wlr_seat_pointer_request_set_cursor_event *event) {
+    printf("ON onRequestCursor:\n");
+
+	/* This event is raised by the seat when a client provides a cursor image */
+	struct wlr_seat_client *focused_client = seat->pointer_state.focused_client;
+
+	/* This can be sent by any client, so we check to make sure this one is
+	 * actually has pointer focus first. */
+	if (focused_client == event->seat_client) {
+		/* Once we've vetted the client, we can tell the cursor to use the
+		 * provided surface as the cursor image. It will set the hardware cursor
+		 * on the output that it's currently on and continue to do so as the
+		 * cursor moves between outputs. */
+		wlr_cursor_set_surface(cursor->getCursor(), event->surface,
+				event->hotspot_x, event->hotspot_y);
+	}
+}
 
 static void seat_request_cursor(struct wl_listener *listener, void *data) {
-    printf("ON seat_request_cursor\n");
 
+    Server *server = ((Listener<Server> *)listener)->owner;
+	wlr_seat_pointer_request_set_cursor_event *event = (wlr_seat_pointer_request_set_cursor_event *)data;
+
+	server->onRequestCursor(&((Listener<Server> *)listener)->listener, event);
+
+	
 }
 
 void Server::onNewOutput(wl_listener *listener, wlr_output *output) {
@@ -90,6 +185,15 @@ void Server::onNewInput(wl_listener *listener, wlr_input_device *device) {
 	wlr_seat_set_capabilities(seat, caps);
 }
 
+void Server::onNewAppWindow(wl_listener *listener, wlr_xdg_toplevel *xdg_toplevel) {
+
+    printf("ON onNewAppWindow\n");
+
+	AppWindow *aw = new AppWindow(this, xdg_toplevel);
+	
+	printf("NEW WND: %p\n", aw);
+}
+
 void Server::server_new_output(struct wl_listener *listener, void *data) {
     
     Server *server = ((Listener<Server> *)listener)->owner;
@@ -104,8 +208,9 @@ void Server::server_new_input(struct wl_listener *listener, void *data) {
 }
 
 static void server_new_xdg_toplevel(struct wl_listener *listener, void *data) {
-    printf("ON server_new_xdg_toplevel\n");
 
+    Server *server = ((Listener<Server> *)listener)->owner;
+    server->onNewAppWindow(&((Listener<Server> *)listener)->listener, (wlr_xdg_toplevel *)data);
 }
 
 static void server_new_xdg_popup(struct wl_listener *listener, void *data) {
@@ -129,6 +234,10 @@ Server::Server() {
 
 	new_xdg_toplevel.listener.notify = server_new_xdg_toplevel;
 	new_xdg_popup.listener.notify = server_new_xdg_popup;
+
+
+	request_cursor.owner = this;
+	request_set_selection.owner = this;
 }
 
 void Server::init() {
@@ -168,7 +277,7 @@ void Server::init() {
 	scene = wlr_scene_create();
 	scene_layout = wlr_scene_attach_output_layout(scene, output_layout);
 
-	wl_list_init(&toplevels);
+	wl_list_init(&appWindows);
 	xdg_shell = wlr_xdg_shell_create(display, 3);
 	wl_signal_add(&xdg_shell->events.new_toplevel, &new_xdg_toplevel.listener);
 	wl_signal_add(&xdg_shell->events.new_popup, &new_xdg_popup.listener);
@@ -188,6 +297,9 @@ void Server::init() {
 	wl_signal_add(&backend->events.new_input, &new_input.listener);
 
 	seat = wlr_seat_create(display, "seat0");
+
+	printf("SET SEAT: %p to %p\n", this, seat);
+
 	request_cursor.listener.notify = seat_request_cursor;
 	wl_signal_add(&seat->events.request_set_cursor,
 			&request_cursor.listener);

@@ -15,10 +15,13 @@ public:
 
     wlr_cursor *getCursor() { return cursor; }
 
-    void onMove(wlr_pointer_motion_event *event);
+    void onMove(uint32_t time);
 
     static void server_cursor_frame(struct wl_listener *listener, void *data);
     static void server_cursor_motion(struct wl_listener *listener, void *data);
+    static void server_cursor_motion_absolute(wl_listener *listener, void *data);
+    static void server_cursor_button(struct wl_listener *listener, void *data);
+    
 private:
     Server *server;
 

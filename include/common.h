@@ -9,6 +9,9 @@
 #include <unistd.h>
 #include <wayland-server-core.h>
 
+#include <vector>
+using std::vector;
+
 #ifdef __cplusplus
 extern "C" {
 #define static
