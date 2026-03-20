@@ -21,20 +21,13 @@ void Cursor::onMove(uint32_t time) {
 
 	double sx, sy;
 	struct wlr_seat *seat = server->getSeat();
-	struct wlr_surface *surface = NULL;
+	struct wlr_surface *surface = server->getSurfaceAt(cursor->x, cursor->y, &sx, &sy);
 	
-	AppWindow *wnd = server->getWindowAt(cursor->x, cursor->y, &sx, &sy);
-
-	if (wnd) {
-		surface = wnd->getSurface();
-	} else {
-		wlr_cursor_set_xcursor(cursor, cursor_mgr, "default");
-	}
-
 	if (surface) {
 		wlr_seat_pointer_notify_enter(seat, surface, sx, sy);
 		wlr_seat_pointer_notify_motion(seat, time, sx, sy);
 	} else {
+		wlr_cursor_set_xcursor(cursor, cursor_mgr, "default");
 		wlr_seat_pointer_clear_focus(seat);
 	}
 }

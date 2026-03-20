@@ -42,13 +42,27 @@ bool Keyboard::handleKeyBinding(xkb_keysym_t sym) {
 		wl_display_terminate(server->getDisplay());
 		break;
 	case XKB_KEY_F1:
-		/* Cycle to the next toplevel */
-		//if (wl_list_length(&server->toplevels) < 2) {
-		//	break;
-		//}
-		//struct tinywl_toplevel *next_toplevel =
-		//	wl_container_of(server->toplevels.prev, next_toplevel, link);
-		//focus_toplevel(next_toplevel);
+		printf("KEY F1\n");
+
+		setenv("WAYLAND_DISPLAY", server->getSocket(), true);
+		if (fork() == 0) {
+			execl("/bin/sh", "/bin/sh", "-c", "konsole", (void *)NULL);
+		}break;
+	case XKB_KEY_F2:
+		printf("KEY F1\n");
+
+		setenv("WAYLAND_DISPLAY", server->getSocket(), true);
+		if (fork() == 0) {
+			execl("/bin/sh", "/bin/sh", "-c", "firefox", (void *)NULL);
+		}break;
+	case XKB_KEY_F3:
+		printf("KEY F1\n");
+
+		setenv("WAYLAND_DISPLAY", server->getSocket(), true);
+		if (fork() == 0) {
+			execl("/bin/sh", "/bin/sh", "-c", "code", (void *)NULL);
+		}break;
+		
 	default:
 		return false;
 	} 
@@ -92,7 +106,7 @@ void Keyboard::onKey(wl_listener *listener, wlr_keyboard_key_event *event) {
 
 	uint32_t modifiers = wlr_keyboard_get_modifiers(keyboard);
 
-	if ((modifiers & WLR_MODIFIER_ALT) && event->state == WL_KEYBOARD_KEY_STATE_PRESSED) {
+	if ((modifiers & WLR_MODIFIER_ALT) && !(modifiers & WLR_MODIFIER_CTRL) && event->state == WL_KEYBOARD_KEY_STATE_PRESSED) {
 		// If alt is held down and this button was _pressed_, we attempt to
 		// process it as a compositor keybinding. 
 		for (int i = 0; i < nsyms; i++) {
@@ -101,6 +115,7 @@ void Keyboard::onKey(wl_listener *listener, wlr_keyboard_key_event *event) {
 	}
 
 	if (!handled) {
+		printf("PASSING ON\n");
 		// Otherwise, we pass it along to the client.
 		wlr_seat_set_keyboard(seat, keyboard);
 		wlr_seat_keyboard_notify_key(seat, event->time_msec, event->keycode, event->state);

@@ -3,12 +3,30 @@
 #include "plxwm_keyboard.h"
 #include "plxwm_cursor.h"
 #include "plxwm_appwindow.h"
+#include "plxwm_popup.h"
 
 namespace PlxWM {
 
 
 wlr_cursor *Server::getCursor() { 
 	return cursor->getCursor(); 
+}
+
+wlr_surface *Server::getSurfaceAt(double lx, double ly, double *sx, double *sy) {
+	wlr_scene_node *node = wlr_scene_node_at(&scene->tree.node, lx, ly, sx, sy);
+
+	if (node == NULL || node->type != WLR_SCENE_NODE_BUFFER) {
+		return NULL;
+	}
+
+	struct wlr_scene_buffer *scene_buffer = wlr_scene_buffer_from_node(node);
+	struct wlr_scene_surface *scene_surface =
+		wlr_scene_surface_try_from_buffer(scene_buffer);
+	if (!scene_surface) {
+		return NULL;
+	}
+
+	return scene_surface->surface;
 }
 
 AppWindow *Server::getWindowAt(double lx, double ly, double *sx, double *sy) {
@@ -172,11 +190,30 @@ void Server::onNewOutput(wl_listener *listener, wlr_output *output) {
 	 * refresh rate), and each monitor supports only a specific set of modes. We
 	 * just pick the monitor's preferred mode, a more sophisticated compositor
 	 * would let the user configure it. */
+
+	FILE *fp = fopen("./log.log", "wb");
+
 	struct wlr_output_mode *mode = wlr_output_preferred_mode(output);
 
 	if (mode != NULL) {
+		fprintf(fp, "Pref Mode: %d x %d\n", mode->width, mode->height);
 		wlr_output_state_set_mode(&state, mode);
+	} else {
+		fprintf(fp, "No pref mode\n");
+
+		if (wl_list_empty(&output->modes)) {
+			fprintf(fp, "MODES EMPTY\n");
+		}
 	}
+
+	wl_list_for_each(mode, &output->modes, link) {
+		fprintf(fp, "A MODE Mode: %d x %d\n", mode->width, mode->height);
+	}
+
+	fclose(fp);
+
+	// Set scale to 2.0 for 4K monitors, or 1.5 for 1440p
+	wlr_output_state_set_scale(&state, 2.0);
 
 	/* Atomically applies the new output state. */
 	wlr_output_commit_state(output, &state);
@@ -199,6 +236,8 @@ void Server::onNewOutput(wl_listener *listener, wlr_output *output) {
 	wlr_output_layout_output *l_output = wlr_output_layout_add_auto(output_layout, output);
 	wlr_scene_output *scene_output = wlr_scene_output_create(scene, output);
 	wlr_scene_output_layout_add_output(scene_layout, l_output, scene_output);
+
+    
 }
 
 void Server::onNewInput(wl_listener *listener, wlr_input_device *device) {
@@ -247,6 +286,8 @@ void Server::onNewAppWindow(wl_listener *listener, wlr_xdg_toplevel *xdg_topleve
 
 void Server::onNewPopup(wl_listener *listener, wlr_xdg_popup *event) {
     printf("ON server_new_xdg_popup\n");
+
+	Popup *popup = new Popup(this, event);
 
 /*
 	// * This event is raised when a client creates a new popup. 
@@ -374,7 +415,7 @@ void Server::init() {
 			&request_set_selection.listener);
 
 	/* Add a Unix socket to the Wayland display. */
-	const char *socket = wl_display_add_socket_auto(display);
+	socket = wl_display_add_socket_auto(display);
 	if (!socket) {
 		wlr_backend_destroy(backend);
 		return;

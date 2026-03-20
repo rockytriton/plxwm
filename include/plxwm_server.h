@@ -61,6 +61,12 @@ public:
 
     void setCursorMode(CursorMode mode) { cursor->setCursorMode(mode); }
 
+	wlr_surface *getSurfaceAt(double lx, double ly, double *sx, double *sy);
+
+	const char *socket;
+
+	const char *getSocket() { return socket; }
+
 private:
 	wl_display *display;
 	wlr_backend *backend;
