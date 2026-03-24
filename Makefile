@@ -2,46 +2,65 @@ PKG_CONFIG ?= pkg-config
 WAYLAND_PROTOCOLS != $(PKG_CONFIG) --variable=pkgdatadir wayland-protocols
 WAYLAND_SCANNER != $(PKG_CONFIG) --variable=wayland_scanner wayland-scanner
 
+# --- Compositor Settings ---
 PKGS = "wlroots-0.19" wayland-server xkbcommon
 CFLAGS_PKG_CONFIG != $(PKG_CONFIG) --cflags $(PKGS)
-CFLAGS += $(CFLAGS_PKG_CONFIG)
 LIBS != $(PKG_CONFIG) --libs $(PKGS)
+
+# --- External: Panel Settings ---
+PANEL_PKGS = gtk+-3.0 gtk-layer-shell-0
+PANEL_CFLAGS != $(PKG_CONFIG) --cflags $(PANEL_PKGS)
+PANEL_LIBS != $(PKG_CONFIG) --libs $(PANEL_PKGS)
 
 CXX = g++
 BUILD_DIR = build
 SRC_DIR = src
 
-# List your source files (filenames only)
-SRCS_FILES = plxwm.cpp plxwm_server.cpp plxwm_server_output.cpp plxwm_keyboard.cpp plxwm_cursor.cpp plxwm_appwindow.cpp plxwm_popup.cpp
+# Compositor Sources
+SRCS_FILES = plxwm.cpp plxwm_server.cpp plxwm_server_output.cpp plxwm_keyboard.cpp \
+             plxwm_cursor.cpp plxwm_appwindow.cpp plxwm_popup.cpp plxwm_layerwindow.cpp
+OBJS = $(addprefix $(BUILD_DIR)/, $(SRCS_FILES:.cpp=.o))
 
-# Map the source filenames to their actual location in src/
-SRCS = $(addprefix $(SRC_DIR)/, $(SRCS_FILES))
+# Panel Sources (ext/panel/src/...)
+PANEL_DIR = ext/panel
+PANEL_SRC_DIR = $(PANEL_DIR)/src
+PANEL_BUILD_DIR = $(BUILD_DIR)/panel
+PANEL_SRCS = $(wildcard $(PANEL_SRC_DIR)/*.cpp)
+PANEL_OBJS = $(patsubst $(PANEL_SRC_DIR)/%.cpp, $(PANEL_BUILD_DIR)/%.o, $(PANEL_SRCS))
 
-# Map the source files to the build directory for object files
-# This turns "src/plxwm.cpp" into "build/plxwm.o"
-OBJS = $(SRCS_FILES:%.cpp=$(BUILD_DIR)/%.o)
+# --- Rules ---
 
-all: plxwm
+all: plxwm plxwm-panel
 
-# 1. Generate the protocol header
+# 1. Protocols
 $(BUILD_DIR)/xdg-shell-protocol.h: | $(BUILD_DIR)
 	$(WAYLAND_SCANNER) server-header \
 		$(WAYLAND_PROTOCOLS)/stable/xdg-shell/xdg-shell.xml $@
 
-# 2. Pattern Rule for .cpp files
-# This tells Make: "To build build/foo.o, look for src/foo.cpp"
-$(BUILD_DIR)/%.o: $(SRC_DIR)/%.cpp $(BUILD_DIR)/xdg-shell-protocol.h | $(BUILD_DIR)
-	$(CXX) -c $< -g -Werror $(CFLAGS) -I$(BUILD_DIR) -Iinclude -I$(SRC_DIR) -DWLR_USE_UNSTABLE -o $@
+$(BUILD_DIR)/wlr-layer-shell-unstable-v1-protocol.h: protocols/wlr-layer-shell-unstable-v1.xml | $(BUILD_DIR)
+	$(WAYLAND_SCANNER) server-header $< $@
 
-# 3. Create the build directory
-$(BUILD_DIR):
-	mkdir -p $(BUILD_DIR)
+# 2. Build Directories
+$(BUILD_DIR) $(PANEL_BUILD_DIR):
+	mkdir -p $@
 
-# 4. Link everything together
+# 3. Compositor Object Pattern Rule
+$(BUILD_DIR)/%.o: $(SRC_DIR)/%.cpp $(BUILD_DIR)/xdg-shell-protocol.h $(BUILD_DIR)/wlr-layer-shell-unstable-v1-protocol.h | $(BUILD_DIR)
+	$(CXX) -c $< -g -Werror $(CFLAGS) $(CFLAGS_PKG_CONFIG) -I$(BUILD_DIR) -Iinclude -I$(SRC_DIR) -DWLR_USE_UNSTABLE -o $@
+
+# 4. Panel Object Pattern Rule
+$(PANEL_BUILD_DIR)/%.o: $(PANEL_SRC_DIR)/%.cpp | $(PANEL_BUILD_DIR)
+	$(CXX) -c $< -g -Werror $(PANEL_CFLAGS) -I$(PANEL_DIR)/include -o $@
+
+# 5. Link Compositor
 plxwm: $(OBJS)
-	$(CXX) $^ -g -Werror $(CFLAGS) $(LDFLAGS) $(LIBS) -o $@
+	$(CXX) $^ -g -Werror $(CFLAGS) $(CFLAGS_PKG_CONFIG) $(LDFLAGS) $(LIBS) -o $@
+
+# 6. Link Panel
+plxwm-panel: $(PANEL_OBJS)
+	$(CXX) $^ -g -Werror $(PANEL_CFLAGS) $(PANEL_LIBS) -o $@
 
 clean:
-	rm -rf $(BUILD_DIR) plxwm
+	rm -rf $(BUILD_DIR) plxwm plxwm-panel
 
 .PHONY: all clean

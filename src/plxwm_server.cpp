@@ -3,6 +3,7 @@
 #include "plxwm_keyboard.h"
 #include "plxwm_cursor.h"
 #include "plxwm_appwindow.h"
+#include "plxwm_layerwindow.h"
 #include "plxwm_popup.h"
 
 namespace PlxWM {
@@ -32,6 +33,8 @@ wlr_surface *Server::getSurfaceAt(double lx, double ly, double *sx, double *sy) 
 AppWindow *Server::getWindowAt(double lx, double ly, double *sx, double *sy) {
 	wlr_scene_node *node = wlr_scene_node_at(&scene->tree.node, lx, ly, sx, sy);
 
+	printf("GETNODE: %p\n", node);
+
 	if (node == NULL || node->type != WLR_SCENE_NODE_BUFFER) {
 		return NULL;
 	}
@@ -39,15 +42,21 @@ AppWindow *Server::getWindowAt(double lx, double ly, double *sx, double *sy) {
 	struct wlr_scene_buffer *scene_buffer = wlr_scene_buffer_from_node(node);
 	struct wlr_scene_surface *scene_surface =
 		wlr_scene_surface_try_from_buffer(scene_buffer);
+		
 	if (!scene_surface) {
 		return NULL;
 	}
 
 	struct wlr_scene_tree *tree = node->parent;
+	
 	while (tree != NULL && tree->node.data == NULL) {
 		tree = tree->node.parent;
 	}
 
+	if (tree == nullptr) {
+		return nullptr;
+	}
+	
 	return (AppWindow *)tree->node.data;
 }
 
@@ -345,6 +354,13 @@ Server::Server() {
 
 	request_cursor.owner = this;
 	request_set_selection.owner = this;
+	new_layer_surface.owner = this;
+}
+
+void Server::onNewLayerSurface(wl_listener *listener, wlr_layer_surface_v1 *surface) {
+	printf("ON NEW LAYER SURFACE: %p - %p\n", surface, this);
+
+	new LayerWindow(this, surface);
 }
 
 void Server::init() {
@@ -413,6 +429,13 @@ void Server::init() {
 	request_set_selection.listener.notify = NOTIFIER(Server, wlr_seat_request_set_selection_event, onSetSelection);
 	wl_signal_add(&seat->events.request_set_selection,
 			&request_set_selection.listener);
+
+	auto layer_shell = wlr_layer_shell_v1_create(display, 4);
+
+	new_layer_surface.listener.notify = NOTIFIER(Server, wlr_layer_surface_v1, onNewLayerSurface);
+	wl_signal_add(&layer_shell->events.new_surface,
+			&new_layer_surface.listener);
+
 
 	/* Add a Unix socket to the Wayland display. */
 	socket = wl_display_add_socket_auto(display);

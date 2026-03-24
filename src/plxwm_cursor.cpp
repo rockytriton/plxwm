@@ -48,11 +48,11 @@ void Cursor::onMotionAbsolute(wl_listener *listener, wlr_pointer_motion_absolute
 
 void Cursor::onButton(struct wl_listener *listener, wlr_pointer_button_event *event) {
 	wlr_seat_pointer_notify_button(server->getSeat(),
-			event->time_msec, event->button, event->state);
+			event->time_msec, event->button, event->state);\
 			
-	if (event->state == WL_POINTER_BUTTON_STATE_RELEASED) {
+	if (event->state == WL_POINTER_BUTTON_STATE_RELEASED) {\
 		cursor_mode = TINYWL_CURSOR_PASSTHROUGH;
-		server->setGrabbedWindow(NULL);
+		server->setGrabbedWindow(NULL);\
 	} else {
 		double sx, sy;
 

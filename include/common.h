@@ -19,7 +19,9 @@ using std::vector;
 
 #ifdef __cplusplus
 extern "C" {
+
 #define static
+#define namespace _namespace
 #include <wlr/backend.h>
 #include <wlr/render/allocator.h>
 #include <wlr/render/wlr_renderer.h>
@@ -37,7 +39,9 @@ extern "C" {
 #include <wlr/types/wlr_xcursor_manager.h>
 #include <wlr/types/wlr_xdg_shell.h>
 #include <wlr/util/log.h>
+#include <wlr/types/wlr_layer_shell_v1.h>
 #undef static
+#undef namespace
 }
 #endif
 

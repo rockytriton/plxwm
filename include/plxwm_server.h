@@ -21,6 +21,8 @@ public:
 	void onNewPopup(wl_listener *listener, wlr_xdg_popup *event);
 	void onSetSelection(struct wl_listener *listener, wlr_seat_request_set_selection_event *data);
 
+	void onNewLayerSurface(wl_listener *listener, wlr_layer_surface_v1 *surface);
+
     //wl_list *getOutputs() { return &outputs; }
     wlr_scene *getScene() { return scene; }
 
@@ -96,6 +98,9 @@ private:
 	Listener<Server> request_cursor;
 	Listener<Server> request_set_selection;
 	//wl_list keyboards;
+
+	Listener<Server> new_layer_surface;
+
 
 	vector<Keyboard *> keyboards;
 	vector<ServerOutput *> outputs;
