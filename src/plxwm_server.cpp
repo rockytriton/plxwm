@@ -200,29 +200,29 @@ void Server::onNewOutput(wl_listener *listener, wlr_output *output) {
 	 * just pick the monitor's preferred mode, a more sophisticated compositor
 	 * would let the user configure it. */
 
-	FILE *fp = fopen("./log.log", "wb");
+	//FILE *fp = fopen("./log.log", "wb");
 
 	struct wlr_output_mode *mode = wlr_output_preferred_mode(output);
 
 	if (mode != NULL) {
-		fprintf(fp, "Pref Mode: %d x %d\n", mode->width, mode->height);
+		//fprintf(fp, "Pref Mode: %d x %d\n", mode->width, mode->height);
 		wlr_output_state_set_mode(&state, mode);
 	} else {
-		fprintf(fp, "No pref mode\n");
+		//fprintf(fp, "No pref mode\n");
 
 		if (wl_list_empty(&output->modes)) {
-			fprintf(fp, "MODES EMPTY\n");
+			//fprintf(fp, "MODES EMPTY\n");
 		}
 	}
 
 	wl_list_for_each(mode, &output->modes, link) {
-		fprintf(fp, "A MODE Mode: %d x %d\n", mode->width, mode->height);
+		//fprintf(fp, "A MODE Mode: %d x %d\n", mode->width, mode->height);
 	}
 
-	fclose(fp);
+	//fclose(fp);
 
 	// Set scale to 2.0 for 4K monitors, or 1.5 for 1440p
-	wlr_output_state_set_scale(&state, 2.0);
+	wlr_output_state_set_scale(&state, 1.5);
 
 	/* Atomically applies the new output state. */
 	wlr_output_commit_state(output, &state);
@@ -230,7 +230,7 @@ void Server::onNewOutput(wl_listener *listener, wlr_output *output) {
 
 	/* Allocates and configures our state for this output */
     ServerOutput *srv_out = new ServerOutput(this, output);
-    srv_out->init();
+	
 	outputs.push_back(srv_out);
 
 	/* Adds this to the output layout. The add_auto function arranges outputs
@@ -296,7 +296,7 @@ void Server::onNewAppWindow(wl_listener *listener, wlr_xdg_toplevel *xdg_topleve
 void Server::onNewPopup(wl_listener *listener, wlr_xdg_popup *event) {
     printf("ON server_new_xdg_popup\n");
 
-	Popup *popup = new Popup(this, event);
+	Popup *popup = new Popup(this, event, nullptr);
 
 /*
 	// * This event is raised when a client creates a new popup. 
@@ -454,6 +454,13 @@ void Server::init() {
 
 	wlr_log(WLR_INFO, "Running Wayland compositor on WAYLAND_DISPLAY=%s",
 			socket);
+
+	setenv("WAYLAND_DISPLAY", getSocket(), true);
+
+	if (fork() == 0) {
+		execl("/bin/sh", "/bin/sh", "-c", "./plxwm-panel", (void *)NULL);
+	}
+
 	wl_display_run(display);
 
     printf("OK DONE\n");

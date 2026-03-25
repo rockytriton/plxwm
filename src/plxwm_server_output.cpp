@@ -3,33 +3,13 @@
 
 namespace PlxWM {
 
-
-
 ServerOutput::ServerOutput(Server *server, wlr_output *output) {
     this->server = server;
     this->output = output;
 
-	frame.owner = this;
-	request_state.owner = this;
-	destroy.owner = this;
-}
-
-void ServerOutput::init() {
-    
-	/* Sets up a listener for the frame event. */
-	frame.listener.notify = NOTIFIER(ServerOutput, void, onFrame);
-	wl_signal_add(&output->events.frame, &frame.listener);
-
-	/* Sets up a listener for the state request event. */
-	request_state.listener.notify = NOTIFIER(ServerOutput, void, onRequestState);
-	wl_signal_add(&output->events.request_state, &request_state.listener);
-
-	/* Sets up a listener for the destroy event. */
-	destroy.listener.notify = NOTIFIER(ServerOutput, void, onDestroy);
-	wl_signal_add(&output->events.destroy, &destroy.listener);
-
-	//wl_list_insert(server->getOutputs(), &link);
-
+	destroy = make_unique<Signal<&ServerOutput::onDestroy>>(this, &output->events.destroy);
+	requestState = make_unique<Signal<&ServerOutput::onRequestState>>(this, &output->events.request_state);
+	frame = make_unique<Signal<&ServerOutput::onFrame>>(this, &output->events.frame);
 }
 
 void ServerOutput::onFrame(wl_listener *listener, void *data) {
@@ -51,23 +31,14 @@ void ServerOutput::onFrame(wl_listener *listener, void *data) {
 }
 
 void ServerOutput::onRequestState(wl_listener *listener, void *data) {
-    printf("onRequestState\n");
-
-	/* This function is called when the backend requests a new state for
-	 * the output. For example, Wayland and X11 backends request a new mode
-	 * when the output window is resized. */
 	const wlr_output_event_request_state *event = (wlr_output_event_request_state *)data;
 	wlr_output_commit_state(output, event->state);
 }
 
 void ServerOutput::onDestroy(wl_listener *listener, void *data) {
-    printf("onDestroy\n");
-	wl_list_remove(&frame.listener.link);
-	wl_list_remove(&request_state.listener.link);
-	wl_list_remove(&destroy.listener.link);
-	//wl_list_remove(&link);
-
-	//free(output);
+	frame->cleanup();
+	requestState->cleanup();
+	destroy->cleanup();
 }
 
 

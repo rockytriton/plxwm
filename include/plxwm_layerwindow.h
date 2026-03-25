@@ -13,6 +13,7 @@ public:
 
     void onCommit(wl_listener *listener, void *data);
     void onDestroy(wl_listener *listener, void *data);
+    void onPopup(wl_listener *listener, wlr_xdg_popup *popup);
 
 private:
     Server *server;
@@ -20,6 +21,7 @@ private:
 	wlr_layer_surface_v1 *surface;
 
     unique_ptr<Signal<&LayerWindow::onCommit>> commit;
+    unique_ptr<Signal<&LayerWindow::onPopup>> popup;
     unique_ptr<Signal<&LayerWindow::onDestroy>> destroy;
 
 };

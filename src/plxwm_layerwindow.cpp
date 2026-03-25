@@ -1,6 +1,7 @@
 #include "plxwm_layerwindow.h"
 #include "plxwm_server.h"
 #include "plxwm_appwindow.h"
+#include "plxwm_popup.h"
 
 namespace PlxWM {
 
@@ -10,19 +11,21 @@ LayerWindow::LayerWindow(Server *server, wlr_layer_surface_v1 *surface) {
 
     struct wlr_scene_tree *parent_tree = (wlr_scene_tree *)&server->getScene()->tree;
 
-	printf("1: %p\n", parent_tree);
-
-    // 2. Create the scene graph node for the panel
     auto *scene_layer_surface = wlr_scene_layer_surface_v1_create(parent_tree, surface);
-    
-	printf("2: %p\n", scene_layer_surface);
-
-    // 3. THE KEY: Save the scene tree into the surface's data pointer
-    // This is what your Popup constructor Case 2 is looking for!
     surface->data = scene_layer_surface->tree;
 
 	commit = make_unique<Signal<&LayerWindow::onCommit>>(this, &surface->surface->events.commit);
+	popup = make_unique<Signal<&LayerWindow::onPopup>>(this, &surface->events.new_popup);
 	destroy = make_unique<Signal<&LayerWindow::onDestroy>>(this, &surface->events.destroy);
+}
+
+void LayerWindow::onPopup(wl_listener *listener, wlr_xdg_popup *popup) {
+    printf("ON LayerWindow onPopup\n");
+
+    wlr_scene_tree *my_tree = (wlr_scene_tree *)surface->data;
+
+    // Instantiate with the known parent tree
+    new Popup(server, popup, my_tree);
 }
 
 void LayerWindow::onCommit(wl_listener *listener, void *data) {
@@ -41,6 +44,7 @@ void LayerWindow::onDestroy(wl_listener *listener, void *data) {
 
     commit->cleanup();
     destroy->cleanup();
+    popup->cleanup();
 }
 
 }
