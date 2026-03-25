@@ -296,6 +296,11 @@ void Server::onNewAppWindow(wl_listener *listener, wlr_xdg_toplevel *xdg_topleve
 void Server::onNewPopup(wl_listener *listener, wlr_xdg_popup *event) {
     printf("ON server_new_xdg_popup\n");
 
+	if (event->parent == nullptr) {
+		printf("SKIPPING NULL PARENT\n");
+		return;
+	}
+
 	Popup *popup = new Popup(this, event, nullptr);
 
 /*
@@ -360,7 +365,7 @@ Server::Server() {
 void Server::onNewLayerSurface(wl_listener *listener, wlr_layer_surface_v1 *surface) {
 	printf("ON NEW LAYER SURFACE: %p - %p\n", surface, this);
 
-	new LayerWindow(this, surface);
+	layers.push_back(new LayerWindow(this, surface));
 }
 
 void Server::init() {
@@ -469,6 +474,29 @@ void Server::init() {
 void Server::newKeyboard(wlr_input_device *device) {
     Keyboard *kb = new Keyboard(this, device);
 	keyboards.push_back(kb);
+}
+
+void Server::arrangeLayers() {
+	struct wlr_box full_area = {0};
+	
+    wlr_output_effective_resolution(outputs[0]->getOutput(), &full_area.width, &full_area.height);
+    
+    // This is the area left for normal windows (Konsole, etc.)
+    struct wlr_box usable_area = full_area;
+
+    // Loop through all layer surfaces (you should keep a list of them)
+    for (auto *layer_win : layers) {
+        auto *surface = layer_win->getSurface();
+		
+        auto *scene_node = &layer_win->getSceneSurface()->tree->node;
+
+        // The 'wlr_scene_layer_surface_v1_configure' helper 
+        // handles the stretching math based on the anchors!
+        wlr_scene_layer_surface_v1_configure(layer_win->getSceneSurface(), &full_area, &usable_area);
+    }
+
+    // Now update your xdg-shell windows to fit in the new 'usable_area'
+    // server->updateWindowConstraints(usable_area);
 }
 
 };

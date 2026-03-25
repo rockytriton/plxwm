@@ -7,8 +7,9 @@ PKGS = "wlroots-0.19" wayland-server xkbcommon
 CFLAGS_PKG_CONFIG != $(PKG_CONFIG) --cflags $(PKGS)
 LIBS != $(PKG_CONFIG) --libs $(PKGS)
 
-# --- External: Panel Settings ---
-PANEL_PKGS = gtk+-3.0 gtk-layer-shell-0
+# --- External: Panel Settings (Updated for GTK 4) ---
+# Note: gtk4-layer-shell is the specific library for GTK 4
+PANEL_PKGS = gtk4 gtk4-layer-shell-0 glib-2.0
 PANEL_CFLAGS != $(PKG_CONFIG) --cflags $(PANEL_PKGS)
 PANEL_LIBS != $(PKG_CONFIG) --libs $(PANEL_PKGS)
 
@@ -48,7 +49,7 @@ $(BUILD_DIR) $(PANEL_BUILD_DIR):
 $(BUILD_DIR)/%.o: $(SRC_DIR)/%.cpp $(BUILD_DIR)/xdg-shell-protocol.h $(BUILD_DIR)/wlr-layer-shell-unstable-v1-protocol.h | $(BUILD_DIR)
 	$(CXX) -c $< -g -Werror $(CFLAGS) $(CFLAGS_PKG_CONFIG) -I$(BUILD_DIR) -Iinclude -I$(SRC_DIR) -DWLR_USE_UNSTABLE -o $@
 
-# 4. Panel Object Pattern Rule
+# 4. Panel Object Pattern Rule (Updated)
 $(PANEL_BUILD_DIR)/%.o: $(PANEL_SRC_DIR)/%.cpp | $(PANEL_BUILD_DIR)
 	$(CXX) -c $< -g -Werror $(PANEL_CFLAGS) -I$(PANEL_DIR)/include -o $@
 
@@ -56,9 +57,9 @@ $(PANEL_BUILD_DIR)/%.o: $(PANEL_SRC_DIR)/%.cpp | $(PANEL_BUILD_DIR)
 plxwm: $(OBJS)
 	$(CXX) $^ -g -Werror $(CFLAGS) $(CFLAGS_PKG_CONFIG) $(LDFLAGS) $(LIBS) -o $@
 
-# 6. Link Panel
+# 6. Link Panel (Updated)
 plxwm-panel: $(PANEL_OBJS)
-	$(CXX) $^ -g -Werror $(PANEL_CFLAGS) $(PANEL_LIBS) -o $@
+	$(CXX) $^ -g -Werror $(PANEL_LIBS) -o $@
 
 clean:
 	rm -rf $(BUILD_DIR) plxwm plxwm-panel

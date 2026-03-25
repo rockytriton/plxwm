@@ -37,11 +37,15 @@ Popup::Popup(Server *server, wlr_xdg_popup *popup, wlr_scene_tree *parent_tree) 
 
 void Popup::onCommit(wl_listener *listener, void *data) {
 
+    printf("POPUP ON_COMMIT: %p\n", this);
+
     if (popup->base->initial_commit) {
+        printf("\tPOPUP ON_COMMIT: INITIAL\n");
 		wlr_xdg_surface_schedule_configure(popup->base);
 	}
 
     if (popup->base->surface->mapped) {
+        printf("\tPOPUP ON_COMMIT: MAPPED\n");
         wlr_scene_node *node = &((wlr_scene_tree *)popup->base->data)->node;
         
         int x = popup->pending.geometry.x;
@@ -51,9 +55,11 @@ void Popup::onCommit(wl_listener *listener, void *data) {
             popup->parent->role != nullptr && 
             strcmp(popup->parent->role->name, "zwlr_layer_surface_v1") == 0) {
             
-            wlr_scene_node_set_position(node, x, y + 125);
+            wlr_scene_node_set_position(node, x, y);
+            printf("\tPOPUP ON_COMMIT: zwlr_layer_surface_v1\n");
         } else {
             wlr_scene_node_set_position(node, x, y);
+            printf("\tPOPUP ON_COMMIT: %s\n", popup->parent->role->name);
         }
                                      
         // Explicitly ensure the node is enabled

@@ -15,6 +15,8 @@ public:
     void onRequestState(wl_listener *listener, void *data);
     void onDestroy(wl_listener *listener, void *data);
 
+    wlr_output *getOutput() { return output; }
+
 private:
 	Server *server;
 	wlr_output *output;

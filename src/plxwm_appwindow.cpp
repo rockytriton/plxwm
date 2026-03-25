@@ -5,6 +5,36 @@
 namespace PlxWM {
 
 void AppWindow::onMap(wl_listener *listener, void *data) {
+	wlr_output *output = wlr_output_layout_output_at(server->getOutputLayout(), 
+                                                       server->getCursor()->x, 
+                                                       server->getCursor()->y);
+
+	// 2. If no output is under the cursor, fallback to the first one
+	if (!output) {
+		output = wlr_output_layout_get_center_output(server->getOutputLayout());
+	}
+
+	int width = getSurface()->current.width;
+    int height = getSurface()->current.height;
+
+	// 3. Extract the width and height
+	int output_width = output->width;
+	int output_height = output->height;
+	
+	wlr_output_effective_resolution(output, &output_width, &output_height);
+
+	// In plxwm_appwindow.cpp
+	if (xdg_toplevel->pending.width < 600 && xdg_toplevel->pending.height < 400) {
+		// Center the window on the output
+		
+		printf("%d, %d, %d, %d\n", output_width, output_height, width, height);
+		
+		int center_x = (output_width / 2) - (width / 2);
+		int center_y = (output_height / 2) - (height / 2);
+
+		wlr_scene_node_set_position(&scene_tree->node, center_x, center_y);
+	}
+
     server->focus(this);
 }
 

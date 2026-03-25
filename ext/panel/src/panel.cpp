@@ -1,22 +1,31 @@
 #include <gtk/gtk.h>
-#include <gtk-layer-shell/gtk-layer-shell.h>
+#include <gtk4-layer-shell/gtk4-layer-shell.h>
 
-// Callback for menu item selection
-static void on_menu_item_selected(GtkMenuItem *item, gpointer user_data) {
-    const char *label = gtk_menu_item_get_label(item);
-    printf("Selected Menu Item: %s\n", label);
+// Action callback for menu items
+static void on_menu_action_old(GSimpleAction *action, GVariant *parameter, gpointer user_data) {
+    const char *name = g_action_get_name(G_ACTION(action));
+    printf("Selected Menu Item Action: %s\n", name);
 }
 
-// Callback to show the menu when the button is clicked
-static void on_menu_button_clicked(GtkButton *button, gpointer user_data) {
-    GtkWidget *menu = GTK_WIDGET(user_data);
+static void on_menu_action(GSimpleAction *action, GVariant *parameter, gpointer user_data) {
+    GtkWindow *parent_window = GTK_WINDOW(user_data);
+    const char *name = g_action_get_name(G_ACTION(action));
+    printf("Selected Menu Item Action: %s\n", name);
+
+    // 1. Create the Alert Dialog
+    GtkAlertDialog *dialog = gtk_alert_dialog_new("Menu Selection");
     
-    // Position and show the menu
-    gtk_menu_popup_at_widget(GTK_MENU(menu), 
-                             GTK_WIDGET(button), 
-                             GDK_GRAVITY_NORTH_WEST, 
-                             GDK_GRAVITY_SOUTH_WEST, 
-                             NULL);
+    // 2. Set the descriptive text (the "body" of the message)
+    char *message = g_strdup_printf("You selected the %s option.", name);
+    gtk_alert_dialog_set_detail(dialog, message);
+    
+    // 3. Show the dialog
+    // This is non-blocking (async), so the rest of your panel stays responsive
+    gtk_alert_dialog_choose(dialog, parent_window, NULL, NULL, NULL);
+
+    // Cleanup the temporary string
+    g_free(message);
+    g_object_unref(dialog);
 }
 
 static void on_launch_clicked(GtkButton *button, gpointer user_data) {
@@ -29,49 +38,69 @@ static void on_launch_clicked(GtkButton *button, gpointer user_data) {
 }
 
 static void activate(GtkApplication* app, gpointer user_data) {
-    // Styling
-    GtkCssProvider *provider = gtk_css_provider_new();
-    gtk_css_provider_load_from_data(provider,
-        "button { min-height: 30px; padding: 2px 10px; margin: 2px; }"
-        "window { background-color: #222; color: white; }", -1, NULL);
-    gtk_style_context_add_provider_for_screen(gdk_screen_get_default(),
-        GTK_STYLE_PROVIDER(provider), GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
-
+    // 1. Create the Window
     GtkWindow *window = GTK_WINDOW(gtk_application_window_new(app));
 
-    // Layer Shell Setup
+    // Layer Shell Setup (GTK4 version)
     gtk_layer_init_for_window(window);
-    gtk_layer_set_layer(window, GTK_LAYER_SHELL_LAYER_TOP);
-    gtk_layer_set_anchor(window, GTK_LAYER_SHELL_EDGE_BOTTOM, TRUE);
+    //gtk_layer_set_layer(window, GTK_LAYER_SHELL_LAYER_TOP);
+    //gtk_layer_set_anchor(window, GTK_LAYER_SHELL_EDGE_BOTTOM, TRUE);
+    //gtk_layer_set_anchor(window, GTK_LAYER_SHELL_EDGE_LEFT, TRUE);
+    //gtk_layer_set_anchor(window, GTK_LAYER_SHELL_EDGE_RIGHT, TRUE);
+
+    gtk_layer_set_anchor(window, GTK_LAYER_SHELL_EDGE_TOP, TRUE);
+    gtk_layer_set_anchor(window, GTK_LAYER_SHELL_EDGE_BOTTOM, FALSE);
     gtk_layer_set_anchor(window, GTK_LAYER_SHELL_EDGE_LEFT, TRUE);
     gtk_layer_set_anchor(window, GTK_LAYER_SHELL_EDGE_RIGHT, TRUE);
+
     gtk_layer_auto_exclusive_zone_enable(window);
+    // Required for menus to work in most compositors
+    // This allows the panel to take focus when needed (like for menus)
+    gtk_layer_set_keyboard_mode(window, GTK_LAYER_SHELL_KEYBOARD_MODE_ON_DEMAND);
+
 
     GtkWidget *box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
-    gtk_container_add(GTK_CONTAINER(window), box);
+    gtk_window_set_child(window, box);
 
-    // --- 1. Create the Menu ---
-    GtkWidget *menu = gtk_menu_new();
-    const char *items[] = {"System Settings", "Terminal", "File Manager", "Web Browser"};
-    
-    for (int i = 0; i < 4; i++) {
-        GtkWidget *menu_item = gtk_menu_item_new_with_label(items[i]);
-        g_signal_connect(menu_item, "activate", G_CALLBACK(on_menu_item_selected), NULL);
-        gtk_menu_shell_append(GTK_MENU_SHELL(menu), menu_item);
+    // --- 2. Create the Menu Model ---
+    GMenu *menu_model = g_menu_new();
+    const char *items[] = {"Settings", "Terminal", "Files", "Browser", "A", "B"};
+    const char *actions[] = {"settings", "terminal", "files", "browser", "a", "b"};
+
+    // Update your loop to use the "win." prefix in the menu model
+    for (int i = 0; i < 6; i++) {
+        // This tells the menu to look for the action on the Window object
+        char *detailed_action = g_strdup_printf("win.%s", actions[i]);
+        g_menu_append(menu_model, items[i], detailed_action);
+        g_free(detailed_action);
+
+        GSimpleAction *action = g_simple_action_new(actions[i], NULL);
+        g_simple_action_set_enabled(action, TRUE);
+        g_signal_connect(action, "activate", G_CALLBACK(on_menu_action), window);
+        g_action_map_add_action(G_ACTION_MAP(window), G_ACTION(action));
     }
-    gtk_widget_show_all(menu);
 
-    // --- 2. Create the Menu Button ---
-    GtkWidget *menu_btn = gtk_button_new_with_label("Menu");
-    g_signal_connect(menu_btn, "clicked", G_CALLBACK(on_menu_button_clicked), menu);
-    gtk_box_pack_start(GTK_BOX(box), menu_btn, FALSE, FALSE, 5);
+    // --- 3. Create the Menu Button ---
+    // In GTK4, GtkMenuButton handles the popover logic for you automatically
+    GtkWidget *menu_btn = gtk_menu_button_new();
+    gtk_menu_button_set_label(GTK_MENU_BUTTON(menu_btn), "Menu");
+    gtk_menu_button_set_menu_model(GTK_MENU_BUTTON(menu_btn), G_MENU_MODEL(menu_model));
+    gtk_box_append(GTK_BOX(box), menu_btn);
 
-    // Existing Konsole Button
+    // Launch Button
     GtkWidget *button = gtk_button_new_with_label("Launch Konsole");
-    g_signal_connect(button, "clicked", G_CALLBACK(on_launch_clicked), (gpointer)"gtk3-demo-application");
-    gtk_box_pack_start(GTK_BOX(box), button, FALSE, FALSE, 5);
+    g_signal_connect(button, "clicked", G_CALLBACK(on_launch_clicked), (gpointer)"konsole");
+    gtk_box_append(GTK_BOX(box), button);
 
-    gtk_widget_show_all(GTK_WIDGET(window));
+    // CSS Styling
+    GtkCssProvider *provider = gtk_css_provider_new();
+    gtk_css_provider_load_from_string(provider,
+        "button { min-height: 30px; padding: 2px 10px; margin: 2px; }"
+        "window { background-color: #222; color: white; }");
+    gtk_style_context_add_provider_for_display(gdk_display_get_default(),
+        GTK_STYLE_PROVIDER(provider), GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
+
+    gtk_window_present(window);
 }
 
 int main(int argc, char **argv) {

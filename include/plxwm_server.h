@@ -7,6 +7,7 @@ namespace PlxWM {
 class AppWindow;
 class Keyboard;
 class ServerOutput;
+class LayerWindow;
 
 class Server {
 public:
@@ -22,6 +23,8 @@ public:
 	void onSetSelection(struct wl_listener *listener, wlr_seat_request_set_selection_event *data);
 
 	void onNewLayerSurface(wl_listener *listener, wlr_layer_surface_v1 *surface);
+
+	void arrangeLayers();
 
     //wl_list *getOutputs() { return &outputs; }
     wlr_scene *getScene() { return scene; }
@@ -104,6 +107,7 @@ private:
 
 	vector<Keyboard *> keyboards;
 	vector<ServerOutput *> outputs;
+	vector<LayerWindow *> layers;
 
 	wlr_box grab_geobox;
 	uint32_t resize_edges;
