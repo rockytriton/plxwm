@@ -49,19 +49,25 @@ bool Keyboard::handleKeyBinding(xkb_keysym_t sym) {
 			execl("/bin/sh", "/bin/sh", "-c", "konsole", (void *)NULL);
 		}break;
 	case XKB_KEY_F2:
-		printf("KEY F1\n");
+		printf("KEY F2\n");
 
 		setenv("WAYLAND_DISPLAY", server->getSocket(), true);
 		if (fork() == 0) {
 			execl("/bin/sh", "/bin/sh", "-c", "firefox", (void *)NULL);
 		}break;
 	case XKB_KEY_F3:
-		printf("KEY F1\n");
+		printf("KEY F3\n");
 
 		setenv("WAYLAND_DISPLAY", server->getSocket(), true);
 		if (fork() == 0) {
 			execl("/bin/sh", "/bin/sh", "-c", "code", (void *)NULL);
 		}break;
+	case XKB_KEY_F5:
+		printf("KEY F5\n");
+
+		server->logout();
+		break;
+		
 		
 	default:
 		return false;
@@ -72,7 +78,7 @@ bool Keyboard::handleKeyBinding(xkb_keysym_t sym) {
 
 
 void Keyboard::onModifiers(wl_listener *listener, void *data) {
-    printf("onModifiers\n");
+    //printf("onModifiers\n");
 
 	// This event is raised when a modifier key, such as shift or alt, is
 	// pressed. We simply communicate this to the client. 
@@ -90,7 +96,7 @@ void Keyboard::onModifiers(wl_listener *listener, void *data) {
 }
 
 void Keyboard::onKey(wl_listener *listener, wlr_keyboard_key_event *event) {
-    printf("onKey\n");
+    //printf("onKey\n");
 
 	// This event is raised when a key is pressed or released. 
 	wlr_seat *seat = server->getSeat();
@@ -115,7 +121,7 @@ void Keyboard::onKey(wl_listener *listener, wlr_keyboard_key_event *event) {
 	}
 
 	if (!handled) {
-		printf("PASSING ON\n");
+		//printf("PASSING ON\n");
 		// Otherwise, we pass it along to the client.
 		wlr_seat_set_keyboard(seat, keyboard);
 		wlr_seat_keyboard_notify_key(seat, event->time_msec, event->keycode, event->state);

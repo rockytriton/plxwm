@@ -1,14 +1,14 @@
 #include "plxwm_popup.h"
 #include "plxwm_server.h"
 #include "plxwm_appwindow.h"
+#include "plxwm_layerwindow.h"
 
 namespace PlxWM {
 
-Popup::Popup(Server *server, wlr_xdg_popup *popup, wlr_scene_tree *parent_tree) {
+Popup::Popup(Server *server, wlr_xdg_popup *popup, wlr_scene_tree *parent_tree, LayerWindow *LayerWindow) {
     this->server = server;
     this->popup = popup;
 
-    // Fallback if we can't find anything (puts it on the top layer)
     if (!parent_tree) {
         
         if (popup->parent == nullptr) {
@@ -22,47 +22,72 @@ Popup::Popup(Server *server, wlr_xdg_popup *popup, wlr_scene_tree *parent_tree) 
         }
     }
 
-    // Create the scene object
     popup_tree = wlr_scene_xdg_surface_create(parent_tree, popup->base);
-    
     popup->base->data = popup_tree;
-
-    wlr_scene_node_set_position(&popup_tree->node, 
-                                 popup->pending.geometry.x, 
-                                 popup->pending.geometry.y);
-
+    
+	map = make_unique<Signal<&Popup::onMap>>(this, &popup->base->surface->events.map);
 	commit = make_unique<Signal<&Popup::onCommit>>(this, &popup->base->surface->events.commit);
 	destroy = make_unique<Signal<&Popup::onDestroy>>(this, &popup->events.destroy);
 }
 
+void Popup::onMap(wl_listener *listener, void *data) {
+    
+}
+
 void Popup::onCommit(wl_listener *listener, void *data) {
 
-    printf("POPUP ON_COMMIT: %p\n", this);
-
     if (popup->base->initial_commit) {
-        printf("\tPOPUP ON_COMMIT: INITIAL\n");
 		wlr_xdg_surface_schedule_configure(popup->base);
 	}
 
+
     if (popup->base->surface->mapped) {
-        printf("\tPOPUP ON_COMMIT: MAPPED\n");
         wlr_scene_node *node = &((wlr_scene_tree *)popup->base->data)->node;
         
+        wlr_xdg_surface *parent = wlr_xdg_surface_try_from_wlr_surface(popup->parent);
+
+        wlr_box output_box = {0};
+        output_box.width = 1024;
+        output_box.height = 768;
+        wlr_output_effective_resolution(server->getActiveOutput(), &output_box.width, &output_box.height);
+
+        int lx, ly;
+        wlr_xdg_popup_get_toplevel_coords(popup, 
+                                        popup->current.geometry.x, 
+                                        popup->current.geometry.y, 
+                                        &lx, &ly);
+
         int x = popup->pending.geometry.x;
         int y = popup->pending.geometry.y;
+
+        int w = popup->pending.geometry.width;
+        int h = popup->pending.geometry.height;
+
+        int diffY = output_box.height - (ly + h);
+        int diffX = output_box.width - (lx + w);
+
+        //printf("GEOM: %d,%d - %d,%d - %d,%d\n", w, h, x, y, lx, ly);
+
+        //printf("DIFF: %d, %d\n", diffX, diffY);
+
+        if (diffY < 0) {
+            y += diffY;
+        }
+        if (diffX < 0) {
+            x += diffX;
+        }
 
         if (popup->parent != nullptr && 
             popup->parent->role != nullptr && 
             strcmp(popup->parent->role->name, "zwlr_layer_surface_v1") == 0) {
             
             wlr_scene_node_set_position(node, x, y);
-            printf("\tPOPUP ON_COMMIT: zwlr_layer_surface_v1\n");
+            //printf("\tPOPUP ON_COMMIT: zwlr_layer_surface_v1\n");
         } else {
             wlr_scene_node_set_position(node, x, y);
-            printf("\tPOPUP ON_COMMIT: %s\n", popup->parent->role->name);
+            //printf("\tPOPUP ON_COMMIT: %s\n", popup->parent->role->name);
         }
-                                     
-        // Explicitly ensure the node is enabled
+                                        
         wlr_scene_node_set_enabled(node, true);
     }
 }
@@ -70,6 +95,7 @@ void Popup::onCommit(wl_listener *listener, void *data) {
 void Popup::onDestroy(wl_listener *listener, void *data) {
     commit->cleanup();
     destroy->cleanup();
+    map->cleanup();
 }
 
 }

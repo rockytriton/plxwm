@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<protocol name="plxwm_ctrl">
+
+  <copyright>
+    Copyright © 2026 Rocky Pulley (Pullinux)
+  </copyright>
+
+  <interface name="plxwm_ctrl" version="1">
+    <description summary="Internal Pullinux control interface">
+      This interface allows the panel to communicate system events 
+      directly to the plxwm compositor.
+    </description>
+
+    <request name="logout" type="destructor">
+      <description summary="Request the compositor to terminate the session"/>
+    </request>
+
+    <request name="restart_panel">
+      <description summary="Signal the compositor to respawn the panel process"/>
+    </request>
+  </interface>
+</protocol>

@@ -26,13 +26,10 @@ void LayerWindow::onPopup(wl_listener *listener, wlr_xdg_popup *popup) {
 
     wlr_scene_tree *my_tree = (wlr_scene_tree *)surface->data;
 
-    // Instantiate with the known parent tree
-    new Popup(server, popup, my_tree);
+    new Popup(server, popup, my_tree, this);
 }
 
 void LayerWindow::onCommit(wl_listener *listener, void *data) {
-    printf("ON LayerWindow COMMIT %d - %0.8X\n", nnn++, surface->pending.committed);
-
     if (surface->initial_commit) {
         // Now it's safe to configure!
         wlr_layer_surface_v1_configure(surface, 

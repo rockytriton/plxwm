@@ -68,9 +68,15 @@ public:
 
 	wlr_surface *getSurfaceAt(double lx, double ly, double *sx, double *sy);
 
+	wlr_output *getActiveOutput();
+
 	const char *socket;
 
 	const char *getSocket() { return socket; }
+
+	void logout() {
+		wl_display_terminate(display);
+	}
 
 private:
 	wl_display *display;

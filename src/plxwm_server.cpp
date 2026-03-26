@@ -5,6 +5,7 @@
 #include "plxwm_appwindow.h"
 #include "plxwm_layerwindow.h"
 #include "plxwm_popup.h"
+#include "plxwm_wayland.h"
 
 namespace PlxWM {
 
@@ -12,6 +13,8 @@ namespace PlxWM {
 wlr_cursor *Server::getCursor() { 
 	return cursor->getCursor(); 
 }
+
+wlr_output *Server::getActiveOutput() { return outputs[0]->getOutput(); }
 
 wlr_surface *Server::getSurfaceAt(double lx, double ly, double *sx, double *sy) {
 	wlr_scene_node *node = wlr_scene_node_at(&scene->tree.node, lx, ly, sx, sy);
@@ -33,7 +36,7 @@ wlr_surface *Server::getSurfaceAt(double lx, double ly, double *sx, double *sy) 
 AppWindow *Server::getWindowAt(double lx, double ly, double *sx, double *sy) {
 	wlr_scene_node *node = wlr_scene_node_at(&scene->tree.node, lx, ly, sx, sy);
 
-	printf("GETNODE: %p\n", node);
+	//printf("GETNODE: %p\n", node);
 
 	if (node == NULL || node->type != WLR_SCENE_NODE_BUFFER) {
 		return NULL;
@@ -61,18 +64,6 @@ AppWindow *Server::getWindowAt(double lx, double ly, double *sx, double *sy) {
 }
 
 void Server::processResize() {
-
-	/*
-	 * Resizing the grabbed toplevel can be a little bit complicated, because we
-	 * could be resizing from any corner or edge. This not only resizes the
-	 * toplevel on one or two axes, but can also move the toplevel if you resize
-	 * from the top or left edges (or top-left corner).
-	 *
-	 * Note that some shortcuts are taken here. In a more fleshed-out
-	 * compositor, you'd wait for the client to prepare a buffer at the new
-	 * size, then commit any movement that was prepared.
-	*/
-
 
 	AppWindow *wnd = grabbedWindow;
 
@@ -125,16 +116,10 @@ void Server::focus(AppWindow *wnd) {
 	wlr_surface *surface = wnd->getSurface();
 
 	if (prev_surface == surface) {
-		/* Don't re-focus an already focused surface. */
 		return;
 	}
 
 	if (prev_surface) {
-		/*
-		 * Deactivate the previously focused surface. This lets the client know
-		 * it no longer has focus and the client will repaint accordingly, e.g.
-		 * stop displaying a caret.
-		 */
 		wlr_xdg_toplevel *prev_toplevel = wlr_xdg_toplevel_try_from_wlr_surface(prev_surface);
 
 		if (prev_toplevel != NULL) {
@@ -144,40 +129,22 @@ void Server::focus(AppWindow *wnd) {
 
 	wlr_keyboard *keyboard = wlr_seat_get_keyboard(seat);
 
-	/* Move the toplevel to the front */
 	wlr_scene_node_raise_to_top(&wnd->getSceneTree()->node);
 
-	//wl_list_remove(wnd->getLink());
-	//wl_list_insert(&appWindows, wnd->getLink());
-
-	/* Activate the new surface */
 	wlr_xdg_toplevel_set_activated(wnd->getXdgTopLevel(), true);
 
-
-	/*
-	 * Tell the seat to have the keyboard enter this surface. wlroots will keep
-	 * track of this and automatically send key events to the appropriate
-	 * clients without additional work on your part.
-	 */
 	if (keyboard != NULL) {
 		wlr_seat_keyboard_notify_enter(seat, surface,
 			keyboard->keycodes, keyboard->num_keycodes, &keyboard->modifiers);
 	}
-	printf("Focus set (%p to %p)\n", prev_surface, surface);
+	
 }
 
 void Server::onRequestCursor(wl_listener *listener, wlr_seat_pointer_request_set_cursor_event *event) {
 
-	/* This event is raised by the seat when a client provides a cursor image */
 	struct wlr_seat_client *focused_client = seat->pointer_state.focused_client;
 
-	/* This can be sent by any client, so we check to make sure this one is
-	 * actually has pointer focus first. */
 	if (focused_client == event->seat_client) {
-		/* Once we've vetted the client, we can tell the cursor to use the
-		 * provided surface as the cursor image. It will set the hardware cursor
-		 * on the output that it's currently on and continue to do so as the
-		 * cursor moves between outputs. */
 		wlr_cursor_set_surface(cursor->getCursor(), event->surface,
 				event->hotspot_x, event->hotspot_y);
 	}
@@ -192,6 +159,10 @@ void Server::onNewOutput(wl_listener *listener, wlr_output *output) {
 	/* The output may be disabled, switch it on. */
 	wlr_output_state state;
 	wlr_output_state_init(&state);
+
+	// Set scale to 2.0 for 4K monitors, or 1.5 for 1440p
+	wlr_output_state_set_scale(&state, 1.5);
+	
 	wlr_output_state_set_enabled(&state, true);
 
 	/* Some backends don't have modes. DRM+KMS does, and we need to set a mode
@@ -221,8 +192,6 @@ void Server::onNewOutput(wl_listener *listener, wlr_output *output) {
 
 	//fclose(fp);
 
-	// Set scale to 2.0 for 4K monitors, or 1.5 for 1440p
-	wlr_output_state_set_scale(&state, 1.5);
 
 	/* Atomically applies the new output state. */
 	wlr_output_commit_state(output, &state);
@@ -277,9 +246,6 @@ void Server::onNewInput(wl_listener *listener, wlr_input_device *device) {
 	if (!keyboards.empty()) {
 		caps |= WL_SEAT_CAPABILITY_KEYBOARD;
 	}
-	//if (!wl_list_empty(&keyboards)) {
-	//	caps |= WL_SEAT_CAPABILITY_KEYBOARD;
-	//}
 
 	wlr_seat_set_capabilities(seat, caps);
 }
@@ -301,44 +267,11 @@ void Server::onNewPopup(wl_listener *listener, wlr_xdg_popup *event) {
 		return;
 	}
 
-	Popup *popup = new Popup(this, event, nullptr);
-
-/*
-	// * This event is raised when a client creates a new popup. 
-	struct wlr_xdg_popup *xdg_popup = data;
-
-	struct tinywl_popup *popup = calloc(1, sizeof(*popup));
-	popup->xdg_popup = xdg_popup;
-
-	// We must add xdg popups to the scene graph so they get rendered. The
-	//// * wlroots scene graph provides a helper for this, but to use it we must
-	// * provide the proper parent scene node of the xdg popup. To enable this,
-	// * we always set the user data field of xdg_surfaces to the corresponding
-	// * scene node. 
-	struct wlr_xdg_surface *parent = wlr_xdg_surface_try_from_wlr_surface(xdg_popup->parent);
-	assert(parent != NULL);
-	struct wlr_scene_tree *parent_tree = parent->data;
-	xdg_popup->base->data = wlr_scene_xdg_surface_create(parent_tree, xdg_popup->base);
-
-	popup->commit.notify = xdg_popup_commit;
-	wl_signal_add(&xdg_popup->base->surface->events.commit, &popup->commit);
-
-	popup->destroy.notify = xdg_popup_destroy;
-	wl_signal_add(&xdg_popup->events.destroy, &popup->destroy);
-*/
+	Popup *popup = new Popup(this, event, nullptr, nullptr);
 }
 
 void Server::onSetSelection(struct wl_listener *listener, wlr_seat_request_set_selection_event *data) {
     printf("ON seat_request_set_selection\n");
-
-	/* This event is raised by the seat when a client wants to set the selection,
-	 * usually when the user copies something. wlroots allows compositors to
-	 * ignore such requests if they so choose, but in tinywl we always honor
-	 
-	struct tinywl_server *server = wl_container_of(
-			listener, server, request_set_selection);
-	struct wlr_seat_request_set_selection_event *event = data;
-	wlr_seat_set_selection(server->seat, event->source, event->serial); */
 }
 
 Server::Server() {
@@ -353,9 +286,6 @@ Server::Server() {
 
 	new_xdg_toplevel.listener.notify = NOTIFIER(Server, wlr_xdg_toplevel, onNewAppWindow);
 	new_xdg_popup.listener.notify = NOTIFIER(Server, wlr_xdg_popup, onNewPopup);
-
-
-
 
 	request_cursor.owner = this;
 	request_set_selection.owner = this;
@@ -398,27 +328,16 @@ void Server::init() {
 
     output_layout = wlr_output_layout_create(display);
 
-	//wl_list_init(&outputs);
-
 	wl_signal_add(&backend->events.new_output, &new_output.listener);
 
 	scene = wlr_scene_create();
 	scene_layout = wlr_scene_attach_output_layout(scene, output_layout);
 
-	//wl_list_init(&appWindows);
 	xdg_shell = wlr_xdg_shell_create(display, 3);
 	wl_signal_add(&xdg_shell->events.new_toplevel, &new_xdg_toplevel.listener);
 	wl_signal_add(&xdg_shell->events.new_popup, &new_xdg_popup.listener);
 
     cursor = new Cursor(this);
-
-	/*
-	 * Configures a seat, which is a single "seat" at which a user sits and
-	 * operates the computer. This conceptually includes up to one keyboard,
-	 * pointer, touch, and drawing tablet device. We also rig up a listener to
-	 * let us know when new input devices are available on the backend.
-	 */
-	//wl_list_init(&keyboards);
 
 	new_input.listener.notify = NOTIFIER(Server, wlr_input_device, onNewInput);
 	wl_signal_add(&backend->events.new_input, &new_input.listener);
@@ -460,10 +379,12 @@ void Server::init() {
 	wlr_log(WLR_INFO, "Running Wayland compositor on WAYLAND_DISPLAY=%s",
 			socket);
 
+	registerServerProtocol(this);
+
 	setenv("WAYLAND_DISPLAY", getSocket(), true);
 
 	if (fork() == 0) {
-		execl("/bin/sh", "/bin/sh", "-c", "./plxwm-panel", (void *)NULL);
+		execl("/bin/sh", "/bin/sh", "-c", "/data2/git/plxwm/plxwm-panel", (void *)NULL);
 	}
 
 	wl_display_run(display);
@@ -477,26 +398,27 @@ void Server::newKeyboard(wlr_input_device *device) {
 }
 
 void Server::arrangeLayers() {
-	struct wlr_box full_area = {0};
-	
-    wlr_output_effective_resolution(outputs[0]->getOutput(), &full_area.width, &full_area.height);
+    struct wlr_output *output = outputs[0]->getOutput(); // Assuming single monitor for now
+    struct wlr_box full_area = {0};
+    wlr_output_effective_resolution(output, &full_area.width, &full_area.height);
     
-    // This is the area left for normal windows (Konsole, etc.)
     struct wlr_box usable_area = full_area;
 
-    // Loop through all layer surfaces (you should keep a list of them)
     for (auto *layer_win : layers) {
+        auto *scene_surface = layer_win->getSceneSurface();
         auto *surface = layer_win->getSurface();
-		
-        auto *scene_node = &layer_win->getSceneSurface()->tree->node;
 
-        // The 'wlr_scene_layer_surface_v1_configure' helper 
-        // handles the stretching math based on the anchors!
-        wlr_scene_layer_surface_v1_configure(layer_win->getSceneSurface(), &full_area, &usable_area);
+        wlr_scene_layer_surface_v1_configure(scene_surface, &full_area, &usable_area);
+
+        wlr_layer_surface_v1_configure(surface, full_area.width, surface->pending.desired_height);
+
+        int panel_height = surface->current.actual_height;
+
+        if (panel_height == 0) panel_height = 40; // fallback if not yet committed
+
+        wlr_scene_node_set_position(&scene_surface->tree->node, 0, full_area.height - panel_height);
     }
-
-    // Now update your xdg-shell windows to fit in the new 'usable_area'
-    // server->updateWindowConstraints(usable_area);
 }
 
-};
+
+}
